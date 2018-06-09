@@ -1,0 +1,2 @@
+# magnus
+Table Tennis imitation
