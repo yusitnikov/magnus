@@ -53,96 +53,15 @@ namespace Magnus
         {
             if (aim != null)
             {
-                State aimState = aim.State;
-                State aimState0 = aim.State0;
-                Player aimPlayer = aimState.p[index];
-                Player aimPlayer0 = aimState0.p[index];
+                bool stillMoving = aim.UpdatePlayerPosition(s, this);
 
-                double adt = s.t - aimState.t;
-                double mvr = aimPlayer.speed.Length;
-                double aa, adt2;
-        		if (mvr == 0)
+                if (!stillMoving)
                 {
-                    aa = Constants.ma;
-                    adt2 = 0;
-                }
-                else
-                {
-                    aa = Math.Min(Math.Max(mvr / (0.2 * 7), mvr * mvr / 2 / 200), Constants.ma);
-                    adt2 = mvr / aa;
-                }
+                    var readyState = s.Clone();
+                    readyState.Reset(true, false);
+                    readyState.t = s.t + 10000;
 
-                if (adt > adt2)
-                {
-                    aim.State = s.Clone();
-                    aim.State.Reset(true, false);
-                    aim.State.t = s.t + 10000;
-
-                    aim.State0 = s.Clone();
-                }
-                else
-                {
-                    var mp = aimPlayer.pos;
-                    if (mvr != 0)
-                    {
-                        var nv = aimPlayer.speed.Normal;
-                        if (adt > 0)
-                        {
-                            nv = -nv;
-                        }
-
-                        double adt3 = Math.Max(adt, -adt2);
-                        mp += aimPlayer.speed * adt3 + nv * (aa * adt3 * adt3 / 2);
-                    }
-
-                    if (adt > -adt2)
-                    {
-                        pos = mp;
-                        a = aimPlayer.a;
-                    }
-                    else
-                    {
-                        double adtt = s.t - aimState0.t;
-
-                        var dp = mp - aimPlayer0.pos;
-                        var dr = dp.Length;
-                        var np = dp.Normal;
-
-                        double ds = Math.Min(dr / 2, Constants.mv * Constants.mv / 2 / Constants.ma);
-                        double adt3 = Math.Sqrt(2 * ds / Constants.ma);
-                        double adt4 = (dr - 2 * ds) / Constants.mv;
-
-                        double xx;
-                        if (adtt <= adt3)
-                        {
-                            xx = Constants.ma * adtt * adtt / 2;
-                        }
-                        else
-                        {
-                            adtt -= adt3;
-
-                            if (adtt <= adt4)
-                            {
-                                xx = ds + Constants.mv * adtt;
-                            }
-                            else
-                            {
-                                adtt -= adt4 + adt3;
-
-                                if (adtt < 0)
-                                {
-                                    xx = dr - Constants.ma * adtt * adtt / 2;
-                                }
-                                else
-                                {
-                                    xx = dr;
-                                }
-                            }
-                        }
-
-                        pos = aimPlayer0.pos + xx * np;
-                        a = aimPlayer0.a + (aimPlayer.a - aimPlayer0.a) * Math.Min((s.t - aimState0.t) / (adt3 * 2 + adt4), 1);
-                    }
+                    aim = new Aim(readyState, s.Clone(), index);
                 }
             }
 
@@ -225,8 +144,7 @@ namespace Magnus
                 va = -180;
             }
 
-            Simulation simulation;
-            do
+            while (aim == null && (DateTime.Now - t0).TotalSeconds < 0.02)
             {
                 double v, a1, a2;
                 if (serving)
@@ -249,21 +167,19 @@ namespace Magnus
                 p2.speed = -v * DoublePoint.FromAngle(va - a2);
                 p2.a = 180 + va - a1;
 
-                simulation = new Simulation(s2.Clone(), serving);
-                if (!simulation.Run())
+                var simulation = new Simulation(s2.Clone(), serving);
+                if (simulation.Run())
                 {
-                    simulation = null;
+                    aim = new Aim(s2, s.Clone(), index);
+                    if (aim.HasTimeToReact)
+                    {
+                        needAim = false;
+                    }
+                    else
+                    {
+                        aim = null;
+                    }
                 }
-            }
-            while (simulation == null && (DateTime.Now - t0).TotalSeconds < 0.02);
-
-            if (simulation != null)
-            {
-                aim = new Aim()
-                {
-                    State = s2,
-                    State0 = s.Clone()
-                };
             }
         }
     }

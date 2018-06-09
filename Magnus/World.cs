@@ -50,10 +50,10 @@ namespace Magnus
         {
             for (var i = 0; i <= 1; i++)
             {
-                if (s.p[i].needAim && s.p[i].aim == null)
+                var p = s.p[i];
+                if (p.needAim && p.aim == null)
                 {
-                    s.p[i].FindHit(s);
-                    s.p[i].needAim = s.p[i].aim == null;
+                    p.FindHit(s);
                 }
             }
         }
@@ -76,7 +76,7 @@ namespace Magnus
 
         public void Serve()
         {
-            s.Reset(false, false);
+            s.Reset(true, true);
         }
     }
 }
