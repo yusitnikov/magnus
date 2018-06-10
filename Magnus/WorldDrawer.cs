@@ -5,12 +5,14 @@ namespace Magnus
     class WorldDrawer
     {
         private Graphics g;
+        private Font font;
         private int sw, sh;
         private double sk;
 
-        public WorldDrawer(Graphics g, int sw, int sh)
+        public WorldDrawer(Graphics g, Font font, int sw, int sh)
         {
             this.g = g;
+            this.font = font;
             this.sw = sw;
             this.sh = sh;
             sk = 0.2 * sw / Constants.tw;
@@ -72,6 +74,11 @@ namespace Magnus
                 DrawPlayer(s.p[i]);
             }
             DrawBall(s);
+        }
+
+        public void DrawString(string s, int line, float alignment)
+        {
+            g.DrawString(s, font, Brushes.Black, (sw - g.MeasureString(s, font).Width) * alignment, line * font.Height);
         }
     }
 }

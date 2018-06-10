@@ -40,11 +40,13 @@
             // 
             // WorldForm
             // 
-            this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
-            this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(739, 569);
+            this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.None;
+            this.ClientSize = new System.Drawing.Size(763, 424);
             this.DoubleBuffered = true;
+            this.Font = new System.Drawing.Font("Verdana", 36F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Pixel, ((byte)(204)));
+            this.Margin = new System.Windows.Forms.Padding(4, 9, 4, 9);
             this.Name = "WorldForm";
+            this.StartPosition = System.Windows.Forms.FormStartPosition.WindowsDefaultBounds;
             this.Text = "Magnus";
             this.WindowState = System.Windows.Forms.FormWindowState.Maximized;
             this.Paint += new System.Windows.Forms.PaintEventHandler(this.WorldForm_Paint);

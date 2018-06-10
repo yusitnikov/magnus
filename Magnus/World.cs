@@ -19,8 +19,8 @@ namespace Magnus
                 p = new Player[2],
                 t = 0
             };
-            s.p[Constants.LEFT_SIDE] = new Player(Constants.LEFT_SIDE, -1, new Passive());
-            s.p[Constants.RIGHT_SIDE] = new Player(Constants.RIGHT_SIDE, 1, new Blocker());
+            s.p[Constants.LEFT_SIDE] = new Player(Constants.LEFT_SIDE, -1, new Strategy());
+            s.p[Constants.RIGHT_SIDE] = new Player(Constants.RIGHT_SIDE, 1, new Strategy());
             s.Reset(true, true);
 
             TimeCoeff = 4;

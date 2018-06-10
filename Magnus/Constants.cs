@@ -18,6 +18,6 @@
         public const double bhky = 0.58, bhkx = 0.8, thky = 0.9, thkx = 0.2;
 
         // player sides
-        public const int RIGHT_SIDE = 0, LEFT_SIDE = 1;
+        public const int LEFT_SIDE = 0, RIGHT_SIDE = 1;
     }
 }

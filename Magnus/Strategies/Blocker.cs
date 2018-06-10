@@ -14,7 +14,7 @@
 
         public override double GetHitSpeed()
         {
-            return Misc.Rnd(0.5, 1);
+            return Misc.Rnd(0.3, 0.5);
             //return Misc.Rnd(1, 0, true);
         }
     }
