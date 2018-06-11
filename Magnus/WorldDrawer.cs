@@ -4,81 +4,80 @@ namespace Magnus
 {
     class WorldDrawer
     {
-        private Graphics g;
+        private Graphics graphics;
         private Font font;
-        private int sw, sh;
-        private double sk;
+        private int screenWidth, screenHeight;
+        private double screenCoeff;
 
-        public WorldDrawer(Graphics g, Font font, int sw, int sh)
+        public WorldDrawer(Graphics graphics, Font font, int screenWidth, int screenHeight)
         {
-            this.g = g;
+            this.graphics = graphics;
             this.font = font;
-            this.sw = sw;
-            this.sh = sh;
-            sk = 0.2 * sw / Constants.tw;
+            this.screenWidth = screenWidth;
+            this.screenHeight = screenHeight;
+            screenCoeff = 0.4 * screenWidth / Constants.TableWidth;
         }
 
-        private PointF tsp(DoublePoint p)
+        private PointF getPointProjection(DoublePoint point)
         {
             return new PointF(
-                (float)(sw / 2 + sk * p.X),
-                (float)(sh - sk * (Constants.th + p.Y))
+                (float)(screenWidth / 2 + screenCoeff * point.X),
+                (float)(screenHeight - screenCoeff * (Constants.TableHeight + point.Y))
             );
         }
 
-        private float tsk(double k)
+        private float getDistanceProjection(double distance)
         {
-            return (float)(sk * k);
+            return (float)(screenCoeff * distance);
         }
 
-        private void drawLine(DoublePoint p1, DoublePoint p2, Pen pen = null)
+        private void drawLine(DoublePoint point1, DoublePoint point2, Pen pen = null)
         {
-            PointF p1f = tsp(p1), p2f = tsp(p2);
-            g.DrawLine(pen ?? Pens.Black, p1f, p2f);
+            graphics.DrawLine(pen ?? Pens.Black, getPointProjection(point1), getPointProjection(point2));
         }
 
-        private void drawCircle(DoublePoint p, double r, Pen pen = null)
+        private void drawCircle(DoublePoint center, double radius, Pen pen = null)
         {
-            var pf = tsp(p);
-            var rf = tsk(r);
-            g.DrawEllipse(pen ?? Pens.Black, pf.X - rf, pf.Y - rf, 2 * rf + 1, 2 * rf + 1);
+            var centerProjection = getPointProjection(center);
+            var radiusProjection = getDistanceProjection(radius);
+            var diameterProjection = 2 * radiusProjection + 1;
+            graphics.DrawEllipse(pen ?? Pens.Black, centerProjection.X - radiusProjection, centerProjection.Y - radiusProjection, diameterProjection, diameterProjection);
         }
 
         public void DrawTable()
         {
-            drawLine(new DoublePoint(-Constants.tw, 0), new DoublePoint(Constants.tw, 0));
-            drawLine(new DoublePoint(Constants.tw - Constants.nh, 0), new DoublePoint(Constants.tw - Constants.nh, -Constants.th));
-            drawLine(new DoublePoint(Constants.nh - Constants.tw, 0), new DoublePoint(Constants.nh - Constants.tw, -Constants.th));
-            drawLine(new DoublePoint(0, 0), new DoublePoint(0, Constants.nh));
+            drawLine(new DoublePoint(-Constants.HalfTableWidth, 0), new DoublePoint(Constants.HalfTableWidth, 0));
+            drawLine(new DoublePoint(Constants.HalfTableWidth - Constants.NetHeight, 0), new DoublePoint(Constants.HalfTableWidth - Constants.NetHeight, -Constants.TableHeight));
+            drawLine(new DoublePoint(Constants.NetHeight - Constants.HalfTableWidth, 0), new DoublePoint(Constants.NetHeight - Constants.HalfTableWidth, -Constants.TableHeight));
+            drawLine(new DoublePoint(0, 0), new DoublePoint(0, Constants.NetHeight));
         }
 
-        public void DrawPlayer(Player p)
+        public void DrawPlayer(Player player)
         {
-            var dp = Constants.nh / 2 * DoublePoint.FromAngle(p.a).RotateRight90();
-            double dx = -Constants.nh / 2 * Misc.Cos(p.a), dy = Constants.nh / 2 * Misc.Sin(p.a);
-            drawLine(p.pos + dp, p.pos - dp, p.needAim ? Pens.Red : Pens.Black);
+            var positionDelta = Constants.BatRadius * DoublePoint.FromAngle(player.Angle).RotateRight90();
+            drawLine(player.Position + positionDelta, player.Position - positionDelta, player.NeedAim ? Pens.Red : Pens.Black);
         }
 
-        public void DrawBall(State s)
+        public void DrawBall(State state)
         {
-            drawCircle(s.pos, Constants.br);
-            var dp = Constants.br * DoublePoint.FromAngle(s.a);
-            drawLine(s.pos + dp, s.pos - dp);
+            drawCircle(state.Position, Constants.BallRadius);
+            var positionDelta = Constants.BallRadius * DoublePoint.FromAngle(state.Angle);
+            drawLine(state.Position + positionDelta, state.Position - positionDelta);
         }
 
-        public void DrawWorld(State s)
+        public void DrawWorld(State state)
         {
             DrawTable();
-            for (var i = 0; i <= 1; i++)
+            foreach (var player in state.Players)
             {
-                DrawPlayer(s.p[i]);
+                DrawPlayer(player);
             }
-            DrawBall(s);
+            DrawBall(state);
         }
 
-        public void DrawString(string s, int line, float alignment)
+        public void DrawString(string text, int line, float alignment)
         {
-            g.DrawString(s, font, Brushes.Black, (sw - g.MeasureString(s, font).Width) * alignment, line * font.Height);
+            graphics.DrawString(text, font, Brushes.Black, (screenWidth - graphics.MeasureString(text, font).Width) * alignment, line * font.Height);
         }
     }
 }

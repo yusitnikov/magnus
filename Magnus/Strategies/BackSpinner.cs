@@ -2,9 +2,9 @@
 {
     class BackSpinner : Strategy
     {
-        public override double GetBackHitTime(double t1, double t2)
+        public override double GetBackHitTime(double timeTillMaxHeight, double timeTillFall)
         {
-            return t2 * Misc.Rnd(0.5, 0.8);
+            return timeTillFall * Misc.Rnd(0.5, 0.8);
         }
 
         public override double GetAttackAngle()

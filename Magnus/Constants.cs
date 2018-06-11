@@ -3,21 +3,21 @@
     class Constants
     {
         // table/net/ball/bat size constants
-        public const double tw = 760, th = 400, nh = 75, br = 10, btr = nh / 2;
+        public const double TableWidth = 1520, HalfTableWidth = TableWidth / 2, TableHeight = 400, NetHeight = 75, BallRadius = 10, BatRadius = NetHeight / 2;
 
         // simulation frame time
-        public const double sdt = 0.01;
+        public const double SimulationFrameTime = 0.01;
 
         // player strength constants
-        public const double mv = 1000, ma = 800;
+        public const double MaxPlayerSpeed = 1000, MaxPlayerForce = 800;
 
         // ball forces constants
-        public const double cd = 0.0004, cl = 0.00012, cw = 0.004, g = 100;
+        public const double BallDumpCoeff = 0.0004, BallLiftCoeff = 0.00012, BallAngularDumpCoeff = 0.004, GravityForce = 100;
 
         // hit coefficients
-        public const double bhky = 0.58, bhkx = 0.8, thky = 0.9, thkx = 0.2;
+        public const double BallHitVerticalCoeff = 0.58, BallHitHorizontalCoeff = 0.8, TableHitVerticalCoeff = 0.9, TableHitHorizontalCoeff = 0.2;
 
         // player sides
-        public const int LEFT_SIDE = 0, RIGHT_SIDE = 1;
+        public const int LeftPlayerIndex = 0, RightPlayerIndex = 1;
     }
 }

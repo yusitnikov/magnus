@@ -2,9 +2,9 @@
 {
     class Blocker : Strategy
     {
-        public override double GetBackHitTime(double t1, double t2)
+        public override double GetBackHitTime(double timeTillMaxHeight, double timeTillFall)
         {
-            return t1 * Misc.Rnd(0.2, 1);
+            return timeTillMaxHeight * Misc.Rnd(0.2, 1);
         }
 
         public override double GetAttackAngle()

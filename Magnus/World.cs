@@ -4,36 +4,33 @@ namespace Magnus
 {
     class World
     {
-        public State s;
+        public State State;
 
         public double TimeCoeff;
 
-        public DateTime t;
-        private double tnMod;
+        private DateTime time;
+        private double framesFloatPart;
+
+        public DateTime NextServeTime;
 
         public World()
         {
-            s = new State()
-            {
-                p = new Player[2],
-                t = 0
-            };
-            s.p[Constants.LEFT_SIDE] = new Player(Constants.LEFT_SIDE);
-            s.p[Constants.RIGHT_SIDE] = new Player(Constants.RIGHT_SIDE);
-            s.HitSide = Misc.Rnd(0, 1) < 0.5 ? Constants.LEFT_SIDE : Constants.RIGHT_SIDE;
-            s.Reset(true, true);
+            State = new State();
 
             TimeCoeff = 4;
 
-            t = DateTime.Now;
-            tnMod = 0;
+            time = DateTime.Now;
+            framesFloatPart = 0;
+
+            NextServeTime = DateTime.MaxValue;
         }
 
         public void DoStep()
         {
-            if (DateTime.Now > s.NextServeTime)
+            if (DateTime.Now > NextServeTime)
             {
-                s.Reset(false, false);
+                State.Reset(false, false);
+                NextServeTime = DateTime.MaxValue;
             }
 
             var dt = doTimeStep();
@@ -41,40 +38,46 @@ namespace Magnus
             findPlayerHits();
 
             doStateSteps(dt);
+
+            if (State.GameState == GameState.Failed && NextServeTime == DateTime.MaxValue)
+            {
+                NextServeTime = DateTime.Now.AddSeconds(2);
+            }
         }
 
         private double doTimeStep()
         {
-            var t2 = DateTime.Now;
-            var dt = (t2 - t).TotalSeconds * TimeCoeff;
-            t = t2;
+            var newTime = DateTime.Now;
+            var dt = (newTime - time).TotalSeconds * TimeCoeff;
+            time = newTime;
             return dt;
         }
 
         private void findPlayerHits()
         {
-            for (var i = 0; i <= 1; i++)
+            foreach (var player in State.Players)
             {
-                var p = s.p[i];
-                if (p.needAim)
+                if (player.NeedAim)
                 {
-                    p.FindHit(s);
+                    player.FindHit(State);
                 }
             }
         }
 
         private void doStateSteps(double dt)
         {
-            double tnFloat = dt / Constants.sdt + tnMod;
-            int tnInt = (int)Math.Floor(tnFloat);
-            tnMod = tnFloat - tnInt;
-            for (var i = 0; i < tnInt; i++)
-            {
-                var events = s.DoStepWithBatUpdate(null, Constants.sdt);
+            double floatFramesTime = dt / Constants.SimulationFrameTime + framesFloatPart;
+            int intFramesTime = (int)Math.Floor(floatFramesTime);
+            framesFloatPart = floatFramesTime - intFramesTime;
 
-                if (Misc.EventPresent(events, Event.BAT_HIT))
+            for (var frame = 0; frame < intFramesTime; frame++)
+            {
+                var events = State.DoStepWithBatUpdate(null, Constants.SimulationFrameTime);
+
+                if (events.HasFlag(Event.BatHit))
                 {
-                    s.p[Misc.EventPresent(events, Event.LEFT_BAT_HIT) ? Constants.RIGHT_SIDE : Constants.LEFT_SIDE].RequestAim();
+                    var hitPlayerIndex = events.HasFlag(Event.LeftBatHit) ? Constants.RightPlayerIndex : Constants.LeftPlayerIndex;
+                    State.Players[hitPlayerIndex].RequestAim();
                 }
             }
         }

@@ -16,24 +16,14 @@ namespace Magnus
             return v1 + (v2 - v1) * rnd;
         }
 
-        public static T ChooseRL<T>(int side, T rightValue, T leftValue)
+        public static int GetPlayerSideByIndex(int side)
         {
-            return side == Constants.RIGHT_SIDE ? rightValue : leftValue;
+            return side == Constants.RightPlayerIndex ? 1 : -1;
         }
 
-        public static int GetSideByIndex(int side)
-        {
-            return ChooseRL(side, 1, -1);
-        }
-
-        public static int GetOtherSide(int side)
+        public static int GetOtherPlayerIndex(int side)
         {
             return 1 - side;
-        }
-
-        public static bool EventPresent(Event events, Event mask)
-        {
-            return (events & mask) != 0;
         }
 
         public static double Hypot(double x, double y)

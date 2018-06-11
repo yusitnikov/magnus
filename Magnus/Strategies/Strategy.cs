@@ -2,9 +2,9 @@
 {
     public class Strategy
     {
-        public virtual double GetBackHitTime(double t1, double t2)
+        public virtual double GetBackHitTime(double timeTillMaxHeight, double timeTillFall)
         {
-            return t2 * Misc.Rnd(0.2, 0.8);
+            return timeTillFall * Misc.Rnd(0.2, 0.8);
         }
 
         public virtual double GetAttackAngle()

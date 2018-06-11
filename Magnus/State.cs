@@ -4,41 +4,58 @@ namespace Magnus
 {
     class State
     {
-        public DoublePoint pos, speed;
-        public double a, w;
+        public DoublePoint Position, Speed;
+        public double Angle, AngularSpeed;
 
-        public double t;
+        public int BallSide => Math.Sign(Position.X);
 
-        public Player[] p;
+        public double Time;
+
+        public Player[] Players;
 
         public int HitSide;
         public GameState GameState;
-        public DateTime NextServeTime = DateTime.MaxValue;
+
+        public State()
+        {
+            Players = new Player[2];
+            Time = 0;
+            for (var playerIndex = 0; playerIndex <= 1; playerIndex++)
+            {
+                Players[playerIndex] = new Player(playerIndex);
+            }
+            HitSide = Misc.Rnd(0, 1) < 0.5 ? Constants.LeftPlayerIndex : Constants.RightPlayerIndex;
+            Reset(true, true);
+        }
+
+        private State(State other)
+        {
+            CopyFrom(other);
+        }
 
         public void Reset(bool resetPosition, bool resetAngle)
         {
             GameState = GameState.Serving;
-            NextServeTime = DateTime.MaxValue;
-            pos = new DoublePoint((Constants.tw + Misc.Rnd(100, 400)) * Misc.GetSideByIndex(HitSide), Constants.nh);
-            speed = new DoublePoint(0, Misc.Rnd(150, 400));
-            w = 0;
+            Position = new DoublePoint((Constants.HalfTableWidth + Misc.Rnd(100, 400)) * Misc.GetPlayerSideByIndex(HitSide), Constants.NetHeight);
+            Speed = new DoublePoint(0, Misc.Rnd(150, 400));
+            AngularSpeed = 0;
 
-            foreach (var player in p)
+            foreach (var player in Players)
             {
-                player.Reset(Math.Abs(pos.X) + Constants.nh, resetPosition, resetAngle);
+                player.Reset(Math.Abs(Position.X) + Constants.NetHeight, resetPosition, resetAngle);
             }
 
-            p[HitSide].RequestAim();
+            Players[HitSide].RequestAim();
         }
 
-        private Event doStep(State s0, double dt, bool useBat, bool updateBat = false)
+        private Event doStep(State relativeState, double dt, bool useBat, bool updateBat = false)
         {
-            var events = Event.NONE;
+            var events = Event.None;
 
-            var prev = new State()
+            var prevBallState = new State()
             {
-                pos = pos,
-                speed = speed
+                Position = Position,
+                Speed = Speed
             };
 
             if (useBat)
@@ -46,91 +63,89 @@ namespace Magnus
                 events |= doPlayerStep(dt, updateBat);
             }
 
-            doBallAirStep(s0, dt);
+            doBallAirStep(relativeState, dt);
 
             events |= checkForHits();
 
-            if (pos.X * speed.X >= 0 && prev.pos.X * speed.X < 0)
+            if (BallSide != prevBallState.BallSide)
             {
-                events |= Event.NET_CROSS;
+                events |= Event.NetCross;
             }
 
-            var lowCrossY = -Constants.nh * 2;
-            if (pos.Y <= lowCrossY && prev.pos.Y > lowCrossY)
+            var lowCrossY = -Constants.NetHeight * 2;
+            if (Position.Y <= lowCrossY && prevBallState.Position.Y > lowCrossY)
             {
-                events |= Event.LOW_CROSS;
+                events |= Event.LowCross;
             }
 
-            if (speed.Y <= 0 && prev.speed.Y > 0 && events == 0)
+            if (Speed.Y <= 0 && prevBallState.Speed.Y > 0 && events == 0)
             {
-                events = Event.MAX_HEIGHT;
+                events = Event.MaxHeight;
             }
 
-            if (s0 != null && Misc.EventPresent(events, Event.ANY_HIT))
+            if (relativeState != null && events.HasOneOfEvents(Event.AnyHit))
             {
-                s0.CopyFrom(this);
+                relativeState.CopyFrom(this);
             }
 
             return events;
         }
 
-        private void doBallAirStep(State s0, double dt)
+        private void doBallAirStep(State relativeState, double dt)
         {
-            var simplifiedSpeed = s0 == null ? speed : new DoublePoint(speed.X, 0);
-            DoublePoint aa = Constants.cl * w * simplifiedSpeed.RotateRight90() - Constants.cd * simplifiedSpeed.Length * speed - new DoublePoint(0, Constants.g);
-            double aw = Constants.cw * w * Math.Sqrt(Math.Abs(w));
+            var simplifiedSpeed = relativeState == null ? Speed : new DoublePoint(Speed.X, 0);
+            DoublePoint force = Constants.BallLiftCoeff * AngularSpeed * simplifiedSpeed.RotateRight90() - Constants.BallDumpCoeff * simplifiedSpeed.Length * Speed - new DoublePoint(0, Constants.GravityForce);
+            double angularForce = Constants.BallAngularDumpCoeff * AngularSpeed * Math.Sqrt(Math.Abs(AngularSpeed));
 
-            pos += speed * dt + aa * (dt * dt / 2);
-            a += w * dt;
-            t += dt;
-            speed += aa * dt;
-            w -= aw * dt;
-            if (s0 != null)
+            Position += Speed * dt + force * (dt * dt / 2);
+            Angle += AngularSpeed * dt;
+            Time += dt;
+            Speed += force * dt;
+            AngularSpeed -= angularForce * dt;
+            if (relativeState != null)
             {
-                double t0 = t - s0.t;
-                double fwv = fw(s0.w, t0);
-                w = Math.Sign(s0.w) / (fwv * fwv);
-                var vx = 1 / (Constants.cd * Math.Sign(s0.speed.X) * t0 + 1 / s0.speed.X);
-                speed = new DoublePoint(
-                    vx,
-                    (s0.speed.Y / s0.speed.X - Constants.cl * (ifw(s0.w, t0) - ifw(s0.w, 0)) - Constants.g * (Constants.cd * Math.Sign(s0.speed.X) * t0 * t0 / 2 + t0 / s0.speed.X)) * vx
-                );
+                double t = Time - relativeState.Time;
+                double angularSpeedCharacteristic = calcAngularSpeedCharacteristic(relativeState.AngularSpeed, t);
+                AngularSpeed = Math.Sign(relativeState.AngularSpeed) / (angularSpeedCharacteristic * angularSpeedCharacteristic);
+                Speed.X = 1 / (Constants.BallDumpCoeff * Math.Sign(relativeState.Speed.X) * t + 1 / relativeState.Speed.X);
+                Speed.Y = (relativeState.Speed.Y / relativeState.Speed.X - Constants.BallLiftCoeff * calcAngularSpeedCharacteristicDefiniteIntegral(relativeState.AngularSpeed, t) - Constants.GravityForce * (Constants.BallDumpCoeff * Math.Sign(relativeState.Speed.X) * t * t / 2 + t / relativeState.Speed.X)) * Speed.X;
             }
         }
 
         private Event doPlayerStep(double dt, bool updateBat = false)
         {
-            var events = Event.NONE;
+            var events = Event.None;
 
-            for (var i = 0; i <= 1; i++)
+            for (var playerIndex = 0; playerIndex <= 1; playerIndex++)
             {
-                var pi = p[i];
+                var player = Players[playerIndex];
+
                 if (updateBat)
                 {
-                    pi.DoStep(this, dt);
+                    player.DoStep(this, dt);
                 }
 
                 // project to bat CS
-                var n = DoublePoint.FromAngle(pi.a);
-                var pdp = (pos - pi.pos).ProjectToNormalVector(n);
-                var pdv = (speed - pi.speed).ProjectToNormalVector(n);
-                if (Math.Abs(pdp.X) < Constants.nh / 2 + Constants.br && Math.Abs(pdp.Y) <= Constants.br && pdv.Y <= 0)
+                var batNormal = DoublePoint.FromAngle(player.Angle);
+                var ballPositionInBatSystem = (Position - player.Position).ProjectToNormalVector(batNormal);
+                var ballSpeedInBatSystem = (Speed - player.Speed).ProjectToNormalVector(batNormal);
+                if (Math.Abs(ballPositionInBatSystem.X) < Constants.BatRadius + Constants.BallRadius && Math.Abs(ballPositionInBatSystem.Y) <= Constants.BallRadius && ballSpeedInBatSystem.Y <= 0)
                 {
-                    events |= Event.BAT_HIT;
-                    events |= Misc.ChooseRL(i, Event.RIGHT_BAT_HIT, Event.LEFT_BAT_HIT);
+                    events |= Event.BatHit;
+                    events |= playerIndex == Constants.RightPlayerIndex ? Event.RightBatHit : Event.LeftBatHit;
 
-                    processBallHit(ref pdv, Constants.bhkx, Constants.bhky);
-                    speed = pi.speed + pdv.ProjectFromNormalVector(n);
+                    processBallHit(ref ballSpeedInBatSystem, Constants.BallHitHorizontalCoeff, Constants.BallHitVerticalCoeff);
+                    Speed = player.Speed + ballSpeedInBatSystem.ProjectFromNormalVector(batNormal);
 
                     if (GameState != GameState.Failed)
                     {
-                        if (i != HitSide || GameState.NotReadyToHit.HasFlag(GameState))
+                        if (playerIndex != HitSide || GameState.IsOneOf(GameState.NotReadyToHit))
                         {
                             endSet(false);
                         }
                         else
                         {
-                            HitSide = Misc.GetOtherSide(i);
+                            HitSide = Misc.GetOtherPlayerIndex(playerIndex);
                             switch (GameState)
                             {
                                 case GameState.Serving:
@@ -150,11 +165,7 @@ namespace Magnus
 
         public void EndSet()
         {
-            if (GameState != GameState.Failed)
-            {
-                GameState = GameState.Failed;
-                NextServeTime = DateTime.Now.AddSeconds(2);
-            }
+            GameState = GameState.Failed;
         }
 
         private void endSet(bool hitSideIsWinner)
@@ -163,61 +174,66 @@ namespace Magnus
             {
                 if (!hitSideIsWinner)
                 {
-                    HitSide = Misc.GetOtherSide(HitSide);
+                    HitSide = Misc.GetOtherPlayerIndex(HitSide);
                 }
-                ++p[HitSide].score;
+                ++Players[HitSide].Score;
                 EndSet();
             }
         }
 
-        private void processBallHit(ref DoublePoint relativeSpeed, double kx, double ky)
+        private void processBallHit(ref DoublePoint relativeSpeed, double horizontalHitCoeff, double verticalHitCoeff)
         {
-            const double kw = Constants.br * Math.PI / 180;
-            relativeSpeed.Y *= -ky;
-            double rollSpeedAtPoint = -w * kw;
-            double force = -kx * (rollSpeedAtPoint + relativeSpeed.X);
+            const double angularSpeedToPlainCoeff = Constants.BallRadius * Math.PI / 180;
+            relativeSpeed.Y *= -verticalHitCoeff;
+            double rollSpeedAtPoint = -AngularSpeed * angularSpeedToPlainCoeff;
+            double force = -horizontalHitCoeff * (rollSpeedAtPoint + relativeSpeed.X);
             rollSpeedAtPoint += force;
             relativeSpeed.X += force;
-            w = -rollSpeedAtPoint / kw;
+            AngularSpeed = -rollSpeedAtPoint / angularSpeedToPlainCoeff;
         }
 
-        private double fw(double w, double t)
+        private double calcAngularSpeedCharacteristic(double angularSpeed, double t)
         {
-            return Constants.cw * t / 2 + 1 / Math.Sqrt(Math.Abs(w));
+            return Constants.BallAngularDumpCoeff * t / 2 + 1 / Math.Sqrt(Math.Abs(angularSpeed));
         }
 
-        private double ifw(double w, double t)
+        private double calcAngularSpeedCharacteristicIndefiniteIntegral(double angularSpeed, double t)
         {
-            return -Math.Sign(w) * 2 / Constants.cw / fw(w, t);
+            return -Math.Sign(angularSpeed) * 2 / Constants.BallAngularDumpCoeff / calcAngularSpeedCharacteristic(angularSpeed, t);
+        }
+
+        private double calcAngularSpeedCharacteristicDefiniteIntegral(double angularSpeed, double t)
+        {
+            return calcAngularSpeedCharacteristicIndefiniteIntegral(angularSpeed, t) - calcAngularSpeedCharacteristicIndefiniteIntegral(angularSpeed, 0);
         }
 
         private Event checkForHits()
         {
             Event events = 0;
 
-            var floorHitY = Constants.br - Constants.th;
-            if (pos.Y < floorHitY)
+            var floorHitY = Constants.BallRadius - Constants.TableHeight;
+            if (Position.Y < floorHitY)
             {
-                events |= Event.FLOOR_HIT;
+                events |= Event.FloorHit;
 
-                pos.Y = 2 * floorHitY - pos.Y;
-                speed.Y = Constants.thky * Math.Abs(speed.Y);
+                Position.Y = 2 * floorHitY - Position.Y;
+                Speed.Y = Constants.TableHitVerticalCoeff * Math.Abs(Speed.Y);
 
-                endSet(GameState.NotReadyToHit.HasFlag(GameState));
+                endSet(GameState.IsOneOf(GameState.NotReadyToHit));
             }
 
-            var tableHitY = Constants.br;
-            var tableEndX = Constants.tw + Constants.br;
-            if (pos.Y < tableHitY && Math.Abs(pos.X) < tableEndX)
+            var tableHitY = Constants.BallRadius;
+            var tableEndX = Constants.HalfTableWidth + Constants.BallRadius;
+            if (Position.Y < tableHitY && Math.Abs(Position.X) < tableEndX)
             {
-                if (speed.Y < 0 && pos.Y - tableHitY > Math.Abs(pos.X) - tableEndX)
+                if (Speed.Y < 0 && Position.Y - tableHitY > Math.Abs(Position.X) - tableEndX)
                 {
-                    events |= Event.TABLE_HIT;
+                    events |= Event.TableHit;
 
-                    pos.Y = 2 * tableHitY - pos.Y;
-                    processBallHit(ref speed, Constants.thkx, Constants.thky);
+                    Position.Y = 2 * tableHitY - Position.Y;
+                    processBallHit(ref Speed, Constants.TableHitHorizontalCoeff, Constants.TableHitVerticalCoeff);
 
-                    var isHitSide = Math.Sign(pos.X) == Misc.GetSideByIndex(HitSide);
+                    var isHitSide = BallSide == Misc.GetPlayerSideByIndex(HitSide);
                     switch (GameState)
                     {
                         case GameState.Serving:
@@ -248,47 +264,64 @@ namespace Magnus
                 }
                 else
                 {
-                    events |= Event.FLOOR_HIT;
+                    events |= Event.FloorHit;
 
-                    double k = Math.Sign(pos.X);
-                    pos.X = 2 * tableEndX * k - pos.X;
-                    speed.X = Math.Abs(speed.X) * k;
+                    Position.X = 2 * tableEndX * BallSide - Position.X;
+                    Speed.X = Math.Abs(Speed.X) * BallSide;
 
-                    endSet(GameState.NotReadyToHit.HasFlag(GameState));
+                    endSet(GameState.IsOneOf(GameState.NotReadyToHit));
                 }
             }
 
             return events;
         }
 
-        public Event DoStep(State s0 = null, double dt = Constants.sdt, bool useBat = false)
+        public Event DoStep(State relativeState = null, double dt = Constants.SimulationFrameTime, bool useBat = false)
         {
-            return doStep(s0, dt, useBat);
+            return doStep(relativeState, dt, useBat);
         }
 
-        public Event DoStepWithBatUpdate(State s0, double dt)
+        public Event DoStepWithBatUpdate(State relativeState, double dt)
         {
-            return doStep(s0, dt, true, true);
+            return doStep(relativeState, dt, true, true);
         }
 
-        public void CopyFrom(State s)
+        public bool DoStepsUntilGameState(GameState gameStates, State relativeState = null, double dt = Constants.SimulationFrameTime, bool useBat = false)
         {
-            HitSide = s.HitSide;
-            GameState = s.GameState;
-            NextServeTime = s.NextServeTime;
-            pos = s.pos;
-            a = s.a;
-            speed = s.speed;
-            w = s.w;
-            t = s.t;
-            p = new Player[] { s.p[0].Clone(), s.p[1].Clone() };
+            while (!GameState.IsOneOf(gameStates | GameState.Failed))
+            {
+                DoStep(relativeState, dt, useBat);
+            }
+            return GameState != GameState.Failed;
+        }
+
+        public bool DoStepsUntilEvent(Event events, State relativeState = null, double dt = Constants.SimulationFrameTime, bool useBat = false)
+        {
+            while (GameState != GameState.Failed)
+            {
+                if (DoStep(relativeState, dt, useBat).HasOneOfEvents(events))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        public void CopyFrom(State state)
+        {
+            HitSide = state.HitSide;
+            GameState = state.GameState;
+            Position = state.Position;
+            Angle = state.Angle;
+            Speed = state.Speed;
+            AngularSpeed = state.AngularSpeed;
+            Time = state.Time;
+            Players = new Player[] { state.Players[0].Clone(), state.Players[1].Clone() };
         }
 
         public State Clone()
         {
-            var s = new State();
-            s.CopyFrom(this);
-            return s;
+            return new State(this);
         }
     }
 }

@@ -5,20 +5,20 @@ namespace Magnus
 {
     class Player
     {
-        public int index;
+        public int Index;
 
-        public int side;
+        public int Side => Misc.GetPlayerSideByIndex(Index);
 
-        public int score;
+        public int Score;
 
-        public Strategy strategy;
+        public Strategy Strategy;
 
-        public DoublePoint pos, prevPos, speed;
+        public DoublePoint Position, PrevPosition, Speed;
 
-        public double a;
+        public double Angle;
 
-        public bool needAim;
-        public Aim aim;
+        public bool NeedAim;
+        public Aim Aim;
 
         private Player()
         {
@@ -26,14 +26,13 @@ namespace Magnus
 
         public Player(int index)
         {
-            this.index = index;
-            side = Misc.GetSideByIndex(index);
-            score = 0;
-            strategy = new Strategy();
-            pos = prevPos = speed = DoublePoint.Empty;
-            a = 0;
-            needAim = false;
-            aim = null;
+            Index = index;
+            Score = 0;
+            Strategy = new Strategy();
+            Position = PrevPosition = Speed = DoublePoint.Empty;
+            Angle = 0;
+            NeedAim = false;
+            Aim = null;
         }
 
         public void Reset(double x, bool resetPosition, bool resetAngle)
@@ -42,167 +41,151 @@ namespace Magnus
             {
                 if (resetAngle)
                 {
-                    a = 180 + 90 * side;
+                    Angle = 180 + 90 * Side;
                 }
 
-                prevPos = pos = new DoublePoint(x * side, Constants.nh);
-                speed = DoublePoint.Empty;
+                PrevPosition = Position = new DoublePoint(x * Side, Constants.NetHeight);
+                Speed = DoublePoint.Empty;
             }
 
-            needAim = false;
-            aim = null;
+            NeedAim = false;
+            Aim = null;
         }
 
         public Player Clone()
         {
             return new Player()
             {
-                index = index,
-                side = side,
-                score = score,
-                strategy = strategy,
-                pos = pos,
-                prevPos = prevPos,
-                speed = speed,
-                a = a,
-                needAim = false,
-                aim = null
+                Index = Index,
+                Score = Score,
+                Strategy = Strategy,
+                Position = Position,
+                PrevPosition = PrevPosition,
+                Speed = Speed,
+                Angle = Angle,
+                NeedAim = false,
+                Aim = null
             };
         }
 
         public void DoStep(State s, double dt)
         {
-            if (aim != null)
+            if (Aim != null)
             {
-                bool stillMoving = aim.UpdatePlayerPosition(s, this);
+                bool stillMoving = Aim.UpdatePlayerPosition(s, this);
 
                 if (!stillMoving)
                 {
-                    MoveToInitialPosition(s.t);
+                    MoveToInitialPosition(s.Time);
                 }
             }
 
-            speed = (pos - prevPos) / dt;
-            prevPos = pos;
+            Speed = (Position - PrevPosition) / dt;
+            PrevPosition = Position;
         }
 
         public void MoveToInitialPosition(double currentTime)
         {
             var readyPosition = Clone();
-            readyPosition.Reset(Constants.tw + Constants.nh * 2, true, false);
-            needAim = false;
-            aim = new Aim(readyPosition, this, currentTime + 10000, currentTime);
+            readyPosition.Reset(Constants.HalfTableWidth + Constants.NetHeight * 2, true, false);
+            NeedAim = false;
+            Aim = new Aim(readyPosition, this, currentTime + 10000, currentTime);
         }
 
         public void RequestAim()
         {
-            needAim = true;
+            NeedAim = true;
         }
 
-        public void FindHit(State s)
+        public void FindHit(State state)
         {
-            if (s.GameState == GameState.Failed || index != s.HitSide)
+            var initialTime = state.Time;
+
+            if (state.GameState == GameState.Failed || Index != state.HitSide)
             {
-                MoveToInitialPosition(s.t);
+                MoveToInitialPosition(initialTime);
                 return;
             }
 
-            var t0 = DateTime.Now;
+            var searchStartTime = DateTime.Now;
 
-            State s2 = s.Clone();
-            Player p2 = s2.p[index];
+            var isServing = state.GameState == GameState.Serving;
 
-            Event events;
+            state = state.Clone();
+            var player = state.Players[Index];
 
-            if (s.GameState == GameState.Serving)
+            if (isServing)
             {
-                double yy = Constants.nh * Misc.Rnd(1, 2);
+                double yy = Constants.NetHeight * Misc.Rnd(1, 2);
 
-                while (s2.speed.Y >= 0 || s2.pos.Y >= yy)
+                while (state.Speed.Y >= 0 || state.Position.Y >= yy)
                 {
-                    s2.DoStep();
+                    state.DoStep();
                 }
             }
             else
             {
-                while (!(GameState.FlyingToBat | GameState.Failed).HasFlag(s2.GameState))
+                if (!state.DoStepsUntilGameState(GameState.FlyingToBat))
                 {
-                    s2.DoStep();
-                }
-                if (s2.GameState == GameState.Failed)
-                {
-                    MoveToInitialPosition(s.t);
+                    MoveToInitialPosition(initialTime);
                     return;
                 }
 
-                var s3 = s2.Clone();
+                var timeCalcState = state.Clone();
 
                 // Calculate time till max height
-                do
-                {
-                    events = s3.DoStep();
-                }
-                while (!Misc.EventPresent(events, Event.MAX_HEIGHT));
-                double t1 = s3.t - s2.t;
+                timeCalcState.DoStepsUntilEvent(Event.MaxHeight);
+                double ballMaxHeightTime = timeCalcState.Time - state.Time;
 
                 // Calculate time till ball fall
-                do
-                {
-                    events = s3.DoStep();
-                }
-                while (!Misc.EventPresent(events, Event.LOW_HIT));
-                double t2 = s3.t - s2.t;
+                timeCalcState.DoStepsUntilEvent(Event.LowHit);
+                double ballFallTime = timeCalcState.Time - state.Time;
 
                 // Choose a random point to hit and move s2 to it
-                double tt = s2.t + strategy.GetBackHitTime(t1, t2);
-                while (s2.t < tt)
+                double hitTime = state.Time + Strategy.GetBackHitTime(ballMaxHeightTime, ballFallTime);
+                while (state.Time < hitTime)
                 {
-                    s2.DoStep();
+                    state.DoStep();
                 }
             }
 
-            double va = s2.speed.Angle;
-            if (va == 180 && index == Constants.LEFT_SIDE)
+            double ballSpeedAngle = state.Speed.Angle;
+            if (ballSpeedAngle == 180 && Index == Constants.LeftPlayerIndex)
             {
-                va = -180;
+                ballSpeedAngle = -180;
             }
 
-            Aim newAim = null;
-            while (newAim == null && (DateTime.Now - t0).TotalSeconds < 0.02)
+            while (NeedAim && (DateTime.Now - searchStartTime).TotalSeconds < 0.02)
             {
-                double v, a1, a2;
-                if (s.GameState == GameState.Serving)
+                double hitSpeed, attackAngle, velocityAttackAngle;
+                if (isServing)
                 {
-                    v = Constants.mv * Misc.Rnd(0.2, 0.7) * Math.Abs(s2.pos.X) / Constants.tw;
-                    a1 = Misc.Rnd(20, 100) * side;
+                    hitSpeed = Constants.MaxPlayerSpeed * Misc.Rnd(0.2, 0.7) * Math.Abs(state.Position.X) / Constants.HalfTableWidth;
+                    attackAngle = Misc.Rnd(20, 100) * Side;
                     var rnd = Misc.Rnd(-1, 1);
-                    a2 = (90 + 60 * rnd * rnd * rnd) * side;
+                    velocityAttackAngle = (90 + 60 * rnd * rnd * rnd) * Side;
                 }
                 else
                 {
-                    v = Constants.mv * strategy.GetHitSpeed();
-                    a1 = strategy.GetAttackAngle() * side;
-                    a2 = strategy.GetVelocityAttackAngle() * side;
-                    a2 = Math.Max(a2, a1 - 70);
-                    a2 = Math.Min(a2, a1 + 70);
+                    hitSpeed = Constants.MaxPlayerSpeed * Strategy.GetHitSpeed();
+                    attackAngle = Strategy.GetAttackAngle() * Side;
+                    velocityAttackAngle = Strategy.GetVelocityAttackAngle() * Side;
+                    velocityAttackAngle = Math.Max(velocityAttackAngle, attackAngle - 70);
+                    velocityAttackAngle = Math.Min(velocityAttackAngle, attackAngle + 70);
                 }
 
-                p2.pos = s2.pos + Constants.br * DoublePoint.FromAngle(va - a1);
-                p2.speed = -v * DoublePoint.FromAngle(va - a2);
-                p2.a = 180 + va - a1;
+                player.Position = state.Position + Constants.BallRadius * DoublePoint.FromAngle(ballSpeedAngle - attackAngle);
+                player.Speed = -hitSpeed * DoublePoint.FromAngle(ballSpeedAngle - velocityAttackAngle);
+                player.Angle = 180 + ballSpeedAngle - attackAngle;
 
-                var simulation = new Simulation(s2.Clone());
-                if (simulation.Run())
+                var newAim = new Aim(player, this, state.Time, initialTime);
+                if (newAim.HasTimeToReact)
                 {
-                    newAim = new Aim(p2, this, s2.t, s.t);
-                    if (newAim.HasTimeToReact)
+                    var simulation = new Simulation(state.Clone());
+                    if (simulation.Success)
                     {
-                        needAim = false;
-                        aim = newAim;
-                    }
-                    else
-                    {
-                        newAim = null;
+                        NeedAim = false;
+                        Aim = newAim;
                     }
                 }
             }

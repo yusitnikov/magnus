@@ -1,7 +1,6 @@
 ﻿using Magnus.Strategies;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Windows.Forms;
 
 namespace Magnus
@@ -17,8 +16,8 @@ namespace Magnus
             {
                 Strategy = strategy;
                 Keys = new Keys[2];
-                Keys[Constants.LEFT_SIDE] = leftKey;
-                Keys[Constants.RIGHT_SIDE] = rightKey;
+                Keys[Constants.LeftPlayerIndex] = leftKey;
+                Keys[Constants.RightPlayerIndex] = rightKey;
             }
         }
 
@@ -61,46 +60,49 @@ namespace Magnus
             ++frames;
 
             world.DoStep();
-            var g = e.Graphics;
-            int w = ClientRectangle.Width, h = ClientRectangle.Height;
-            g.Clear(BackColor);
-            var drawer = new WorldDrawer(g, Font, w, h);
-            drawer.DrawWorld(world.s);
+            var graphics = e.Graphics;
+            int screenWidth = ClientRectangle.Width, screenHeight = ClientRectangle.Height;
+            graphics.Clear(BackColor);
+            var drawer = new WorldDrawer(graphics, Font, screenWidth, screenHeight);
+            drawer.DrawWorld(world.State);
             drawer.DrawString("FPS: " + fps, 0, 0);
-            drawer.DrawString(world.s.p[Constants.LEFT_SIDE].strategy + " " + world.s.p[Constants.LEFT_SIDE].score + " - " + world.s.p[Constants.RIGHT_SIDE].score + " " + world.s.p[Constants.RIGHT_SIDE].strategy, 0, 0.5f);
-            for (var i = 0; i < strategies.Count; i++)
+            Player leftPlayer = world.State.Players[Constants.LeftPlayerIndex], rightPlayer = world.State.Players[Constants.RightPlayerIndex];
+            drawer.DrawString(leftPlayer.Strategy + " " + leftPlayer.Score + " - " + rightPlayer.Score + " " + rightPlayer.Strategy, 0, 0.5f);
+            for (var strategyIndex = 0; strategyIndex < strategies.Count; strategyIndex++)
             {
-                var strategyInfo = strategies[i];
-                drawer.DrawString("[" + strategyInfo.Keys[Constants.LEFT_SIDE] + "] " + strategyInfo.Strategy + " [" + strategyInfo.Keys[Constants.RIGHT_SIDE] + "]", i + 2, 0.5f);
+                var strategyInfo = strategies[strategyIndex];
+                drawer.DrawString("[" + strategyInfo.Keys[Constants.LeftPlayerIndex] + "] " + strategyInfo.Strategy + " [" + strategyInfo.Keys[Constants.RightPlayerIndex] + "]", strategyIndex + 2, 0.5f);
             }
         }
 
         private void WorldForm_KeyDown(object sender, KeyEventArgs e)
         {
-            if (e.KeyCode == Keys.Escape)
+            var key = e.KeyCode;
+
+            if (key == Keys.Escape)
             {
                 Close();
             }
 
-            if (e.KeyCode == Keys.Space)
+            if (key == Keys.Space)
             {
-                world.s.EndSet();
+                world.State.EndSet();
             }
 
-            if (e.KeyCode >= Keys.D1 && e.KeyCode <= Keys.D9)
+            if (key >= Keys.D1 && key <= Keys.D9)
             {
-                world.TimeCoeff = e.KeyCode - Keys.D1 + 1;
+                world.TimeCoeff = key - Keys.D1 + 1;
             }
 
             foreach (var strategyInfo in strategies)
             {
-                for (var i = 0; i <= 1; i++)
+                for (var playerIndex = 0; playerIndex <= 1; playerIndex++)
                 {
-                    if (e.KeyCode == strategyInfo.Keys[i])
+                    if (key == strategyInfo.Keys[playerIndex])
                     {
-                        var player = world.s.p[i];
-                        player.strategy = strategyInfo.Strategy;
-                        if (GameState.Playing.HasFlag(world.s.GameState))
+                        var player = world.State.Players[playerIndex];
+                        player.Strategy = strategyInfo.Strategy;
+                        if (world.State.GameState.IsOneOf(GameState.Playing))
                         {
                             player.RequestAim();
                         }

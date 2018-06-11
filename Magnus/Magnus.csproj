@@ -48,6 +48,8 @@
     <Compile Include="Aim.cs" />
     <Compile Include="Constants.cs" />
     <Compile Include="DoublePoint.cs" />
+    <Compile Include="GameStateExtension.cs" />
+    <Compile Include="EventExtension.cs" />
     <Compile Include="Event.cs" />
     <Compile Include="GameState.cs" />
     <Compile Include="Misc.cs" />
