@@ -21,6 +21,16 @@ namespace Magnus
             return side == Constants.RIGHT_SIDE ? rightValue : leftValue;
         }
 
+        public static int GetSideByIndex(int side)
+        {
+            return ChooseRL(side, 1, -1);
+        }
+
+        public static int GetOtherSide(int side)
+        {
+            return 1 - side;
+        }
+
         public static bool EventPresent(Event events, Event mask)
         {
             return (events & mask) != 0;

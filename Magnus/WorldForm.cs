@@ -24,11 +24,11 @@ namespace Magnus
 
         private List<StrategyKeys> strategies = new List<StrategyKeys>()
         {
-            new StrategyKeys(new Strategy(), Keys.Q, Keys.A),
-            new StrategyKeys(new TopSpinner(), Keys.W, Keys.S),
-            new StrategyKeys(new Blocker(), Keys.E, Keys.D),
-            new StrategyKeys(new Passive(), Keys.R, Keys.F),
-            new StrategyKeys(new BackSpinner(), Keys.T, Keys.G),
+            new StrategyKeys(new TopSpinner(), Keys.T, Keys.Y),
+            new StrategyKeys(new Blocker(), Keys.R, Keys.U),
+            new StrategyKeys(new Strategy(), Keys.E, Keys.I),
+            new StrategyKeys(new Passive(), Keys.W, Keys.O),
+            new StrategyKeys(new BackSpinner(), Keys.Q, Keys.P),
         };
 
         private int second = 0;
@@ -67,7 +67,7 @@ namespace Magnus
             var drawer = new WorldDrawer(g, Font, w, h);
             drawer.DrawWorld(world.s);
             drawer.DrawString("FPS: " + fps, 0, 0);
-            drawer.DrawString(world.s.p[Constants.LEFT_SIDE].strategy + " - " + world.s.p[Constants.RIGHT_SIDE].strategy, 0, 0.5f);
+            drawer.DrawString(world.s.p[Constants.LEFT_SIDE].strategy + " " + world.s.p[Constants.LEFT_SIDE].score + " - " + world.s.p[Constants.RIGHT_SIDE].score + " " + world.s.p[Constants.RIGHT_SIDE].strategy, 0, 0.5f);
             for (var i = 0; i < strategies.Count; i++)
             {
                 var strategyInfo = strategies[i];
@@ -84,7 +84,7 @@ namespace Magnus
 
             if (e.KeyCode == Keys.Space)
             {
-                world.Serve();
+                world.s.EndSet();
             }
 
             if (e.KeyCode >= Keys.D1 && e.KeyCode <= Keys.D9)
@@ -98,9 +98,12 @@ namespace Magnus
                 {
                     if (e.KeyCode == strategyInfo.Keys[i])
                     {
-                        world.s.p[i].strategy = strategyInfo.Strategy;
-                        world.s.p[i].RequestAim();
-                        Invalidate();
+                        var player = world.s.p[i];
+                        player.strategy = strategyInfo.Strategy;
+                        if (GameState.Playing.HasFlag(world.s.GameState))
+                        {
+                            player.RequestAim();
+                        }
                     }
                 }
             }

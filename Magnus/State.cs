@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
 
 namespace Magnus
 {
@@ -13,32 +11,24 @@ namespace Magnus
 
         public Player[] p;
 
+        public int HitSide;
+        public GameState GameState;
+        public DateTime NextServeTime = DateTime.MaxValue;
+
         public void Reset(bool resetPosition, bool resetAngle)
         {
-            var serveSide = Misc.Rnd(0, 1) < 0.5 ? Constants.LEFT_SIDE : Constants.RIGHT_SIDE;
-            pos = new DoublePoint((Constants.tw + Misc.Rnd(100, 400)) * Misc.ChooseRL(serveSide, 1, -1), Constants.nh);
+            GameState = GameState.Serving;
+            NextServeTime = DateTime.MaxValue;
+            pos = new DoublePoint((Constants.tw + Misc.Rnd(100, 400)) * Misc.GetSideByIndex(HitSide), Constants.nh);
             speed = new DoublePoint(0, Misc.Rnd(150, 400));
             w = 0;
 
-            for (var i = 0; i <= 1; i++)
+            foreach (var player in p)
             {
-                var pi = p[i];
-                if (resetPosition)
-                {
-                    if (resetAngle)
-                    {
-                        pi.a = 180 + 90 * pi.side;
-                    }
-
-                    pi.prevPos = pi.pos = new DoublePoint((Math.Abs(pos.X) + Constants.nh) * pi.side, Constants.nh);
-                    pi.speed = DoublePoint.Empty;
-                }
-
-                p[i].needAim = false;
-                p[i].aim = null;
+                player.Reset(Math.Abs(pos.X) + Constants.nh, resetPosition, resetAngle);
             }
 
-            p[serveSide].RequestAim();
+            p[HitSide].RequestAim();
         }
 
         private Event doStep(State s0, double dt, bool useBat, bool updateBat = false)
@@ -131,10 +121,53 @@ namespace Magnus
 
                     processBallHit(ref pdv, Constants.bhkx, Constants.bhky);
                     speed = pi.speed + pdv.ProjectFromNormalVector(n);
+
+                    if (GameState != GameState.Failed)
+                    {
+                        if (i != HitSide || GameState.NotReadyToHit.HasFlag(GameState))
+                        {
+                            endSet(false);
+                        }
+                        else
+                        {
+                            HitSide = Misc.GetOtherSide(i);
+                            switch (GameState)
+                            {
+                                case GameState.Serving:
+                                    GameState = GameState.Served;
+                                    break;
+                                case GameState.FlyingToBat:
+                                    GameState = GameState.FlyingToTable;
+                                    break;
+                            }
+                        }
+                    }
                 }
             }
 
             return events;
+        }
+
+        public void EndSet()
+        {
+            if (GameState != GameState.Failed)
+            {
+                GameState = GameState.Failed;
+                NextServeTime = DateTime.Now.AddSeconds(2);
+            }
+        }
+
+        private void endSet(bool hitSideIsWinner)
+        {
+            if (GameState != GameState.Failed)
+            {
+                if (!hitSideIsWinner)
+                {
+                    HitSide = Misc.GetOtherSide(HitSide);
+                }
+                ++p[HitSide].score;
+                EndSet();
+            }
         }
 
         private void processBallHit(ref DoublePoint relativeSpeed, double kx, double ky)
@@ -169,6 +202,8 @@ namespace Magnus
 
                 pos.Y = 2 * floorHitY - pos.Y;
                 speed.Y = Constants.thky * Math.Abs(speed.Y);
+
+                endSet(GameState.NotReadyToHit.HasFlag(GameState));
             }
 
             var tableHitY = Constants.br;
@@ -180,8 +215,36 @@ namespace Magnus
                     events |= Event.TABLE_HIT;
 
                     pos.Y = 2 * tableHitY - pos.Y;
-
                     processBallHit(ref speed, Constants.thkx, Constants.thky);
+
+                    var isHitSide = Math.Sign(pos.X) == Misc.GetSideByIndex(HitSide);
+                    switch (GameState)
+                    {
+                        case GameState.Serving:
+                        case GameState.FlyingToBat:
+                            endSet(false);
+                            break;
+                        case GameState.Served:
+                            if (isHitSide)
+                            {
+                                endSet(true);
+                            }
+                            else
+                            {
+                                GameState = GameState.FlyingToTable;
+                            }
+                            break;
+                        case GameState.FlyingToTable:
+                            if (isHitSide)
+                            {
+                                GameState = GameState.FlyingToBat;
+                            }
+                            else
+                            {
+                                endSet(true);
+                            }
+                            break;
+                    }
                 }
                 else
                 {
@@ -190,6 +253,8 @@ namespace Magnus
                     double k = Math.Sign(pos.X);
                     pos.X = 2 * tableEndX * k - pos.X;
                     speed.X = Math.Abs(speed.X) * k;
+
+                    endSet(GameState.NotReadyToHit.HasFlag(GameState));
                 }
             }
 
@@ -206,18 +271,11 @@ namespace Magnus
             return doStep(s0, dt, true, true);
         }
 
-        public Event DoStepsTillEvent(State s0, double dt, bool useBat)
-        {
-            Event events = 0;
-            while (events == 0)
-            {
-                events = doStep(s0, dt, useBat);
-            }
-            return events;
-        }
-
         public void CopyFrom(State s)
         {
+            HitSide = s.HitSide;
+            GameState = s.GameState;
+            NextServeTime = s.NextServeTime;
             pos = s.pos;
             a = s.a;
             speed = s.speed;

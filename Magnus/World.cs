@@ -1,5 +1,4 @@
-﻿using Magnus.Strategies;
-using System;
+﻿using System;
 
 namespace Magnus
 {
@@ -19,8 +18,9 @@ namespace Magnus
                 p = new Player[2],
                 t = 0
             };
-            s.p[Constants.LEFT_SIDE] = new Player(Constants.LEFT_SIDE, -1, new Strategy());
-            s.p[Constants.RIGHT_SIDE] = new Player(Constants.RIGHT_SIDE, 1, new Strategy());
+            s.p[Constants.LEFT_SIDE] = new Player(Constants.LEFT_SIDE);
+            s.p[Constants.RIGHT_SIDE] = new Player(Constants.RIGHT_SIDE);
+            s.HitSide = Misc.Rnd(0, 1) < 0.5 ? Constants.LEFT_SIDE : Constants.RIGHT_SIDE;
             s.Reset(true, true);
 
             TimeCoeff = 4;
@@ -31,6 +31,11 @@ namespace Magnus
 
         public void DoStep()
         {
+            if (DateTime.Now > s.NextServeTime)
+            {
+                s.Reset(false, false);
+            }
+
             var dt = doTimeStep();
 
             findPlayerHits();
@@ -51,7 +56,7 @@ namespace Magnus
             for (var i = 0; i <= 1; i++)
             {
                 var p = s.p[i];
-                if (p.needAim && p.aim == null)
+                if (p.needAim)
                 {
                     p.FindHit(s);
                 }
@@ -72,11 +77,6 @@ namespace Magnus
                     s.p[Misc.EventPresent(events, Event.LEFT_BAT_HIT) ? Constants.RIGHT_SIDE : Constants.LEFT_SIDE].RequestAim();
                 }
             }
-        }
-
-        public void Serve()
-        {
-            s.Reset(true, true);
         }
     }
 }

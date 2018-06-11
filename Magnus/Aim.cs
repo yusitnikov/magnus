@@ -4,8 +4,8 @@ namespace Magnus
 {
     class Aim
     {
-        private readonly State state, state0;
-        private readonly Player player, player0;
+        private readonly Player aimPlayer, aimPlayer0;
+        private readonly double aimT, aimT0;
 
         private readonly double hitSpeed, forceToHit, timeToHit;
 
@@ -14,15 +14,14 @@ namespace Magnus
 
         public readonly bool HasTimeToReact;
 
-        public Aim(State state, State state0, int playerIndex)
+        public Aim(Player aimPlayer, Player aimPlayer0, double aimT, double aimT0)
         {
-            this.state = state;
-            this.state0 = state0;
+            this.aimPlayer = aimPlayer.Clone();
+            this.aimPlayer0 = aimPlayer0.Clone();
+            this.aimT = aimT;
+            this.aimT0 = aimT0;
 
-            player = state.p[playerIndex];
-            player0 = state0.p[playerIndex];
-
-            hitSpeed = player.speed.Length;
+            hitSpeed = aimPlayer.speed.Length;
             if (hitSpeed == 0)
             {
                 forceToHit = timeToHit = 0;
@@ -33,24 +32,24 @@ namespace Magnus
                 timeToHit = hitSpeed / forceToHit;
             }
 
-            moveVector = getHitPosition(-timeToHit) - player0.pos;
+            moveVector = getHitPosition(-timeToHit) - aimPlayer0.pos;
             moveLength = moveVector.Length;
             forceMoveLength = Math.Min(moveLength / 2, Constants.mv * Constants.mv / 2 / Constants.ma);
             timeToForceMove = Math.Sqrt(2 * forceMoveLength / Constants.ma);
             timeToSpeedMove = (moveLength - 2 * forceMoveLength) / Constants.mv;
             timeToMove = timeToForceMove * 2 + timeToSpeedMove;
 
-            HasTimeToReact = timeToMove + timeToHit <= state.t - state0.t;
+            HasTimeToReact = timeToMove + timeToHit <= aimT - aimT0;
         }
 
         private DoublePoint getHitPosition(double t)
         {
-            return player.pos + player.speed * t - player.speed.Normal * (forceToHit * t * Math.Abs(t) / 2);
+            return aimPlayer.pos + aimPlayer.speed * t - aimPlayer.speed.Normal * (forceToHit * t * Math.Abs(t) / 2);
         }
 
         public bool UpdatePlayerPosition(State s, Player p)
         {
-            double timeFromState = s.t - state.t;
+            double timeFromState = s.t - aimT;
 
             if (timeFromState > timeToHit)
             {
@@ -60,11 +59,11 @@ namespace Magnus
             if (timeFromState > -timeToHit)
             {
                 p.pos = getHitPosition(timeFromState);
-                p.a = player.a;
+                p.a = aimPlayer.a;
             }
             else
             {
-                double timeFromState0 = s.t - state0.t;
+                double timeFromState0 = s.t - aimT0;
 
                 double currentMoveLength;
                 if (timeFromState0 <= timeToForceMove)
@@ -94,8 +93,8 @@ namespace Magnus
                     }
                 }
 
-                p.pos = player0.pos + currentMoveLength * moveVector.Normal;
-                p.a = player0.a + (player.a - player0.a) * Math.Min((s.t - state0.t) / (timeToForceMove * 2 + timeToSpeedMove), 1);
+                p.pos = aimPlayer0.pos + currentMoveLength * moveVector.Normal;
+                p.a = aimPlayer0.a + (aimPlayer.a - aimPlayer0.a) * Math.Min((s.t - aimT0) / (timeToForceMove * 2 + timeToSpeedMove), 1);
             }
 
             return true;

@@ -49,6 +49,7 @@
     <Compile Include="Constants.cs" />
     <Compile Include="DoublePoint.cs" />
     <Compile Include="Event.cs" />
+    <Compile Include="GameState.cs" />
     <Compile Include="Misc.cs" />
     <Compile Include="Player.cs" />
     <Compile Include="Simulation.cs" />

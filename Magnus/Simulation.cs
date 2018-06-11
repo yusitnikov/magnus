@@ -5,59 +5,44 @@ namespace Magnus
     class Simulation
     {
         public State s;
-        public bool serving;
 
         public double h, y, x, t;
 
-        public Simulation(State s, bool serving)
+        public Simulation(State s)
         {
             this.s = s;
-            this.serving = serving;
+            h = y = x = t = 0;
         }
 
         public bool Run()
         {
+            var serving = s.GameState == GameState.Serving;
+
             var tt = s.t;
             h = s.pos.Y;
             var dt = Constants.sdt * 10;
 
-            var events = s.DoStepsTillEvent(null, Constants.sdt, true);
-            if (!Misc.EventPresent(events, Event.BAT_HIT))
+            if (!expectEvent(null, Constants.sdt, Event.BAT_HIT, true))
             {
                 return false;
             }
 
             var s0 = s.Clone();
 
-            if (serving)
+            while (!(GameState.FlyingToBat | GameState.Failed).HasFlag(s.GameState))
             {
-                if (!expectEvent(s0, dt, Event.TABLE_HIT))
-                {
-                    return false;
-                }
-
-                if (Math.Abs(s.pos.X) > Constants.tw * 0.8)
-                {
-                    return false;
-                }
+                doStep(s0, dt, false);
             }
-
-            if (!expectEvent(s0, dt, Event.NET_CROSS))
+            if (s.GameState == GameState.Failed)
             {
                 return false;
             }
 
-            y = s.pos.Y;
             if (y < Constants.nh + Constants.br * 2)
             {
                 return false;
             }
             if (serving && y < Constants.nh * 1.5)
-            {
-                return false;
-            }
-
-            if (!expectEvent(s0, dt, Event.TABLE_HIT))
             {
                 return false;
             }
@@ -78,21 +63,30 @@ namespace Magnus
             return true;
         }
 
-        private bool expectEvent(State s0, double dt, Event ev)
+        private Event doStep(State s0, double dt, bool useBat)
         {
-            Event events = s.DoStepsTillEvent(s0, dt, false);
-
-            if (Misc.EventPresent(events, Event.MAX_HEIGHT))
+            var events = s.DoStep(s0, dt, useBat);
+            h = Math.Max(h, s.pos.Y);
+            if (events.HasFlag(Event.NET_CROSS))
             {
-                h = Math.Max(h, s.pos.Y);
-
-                if (events == Event.MAX_HEIGHT)
-                {
-                    events = s.DoStepsTillEvent(s0, dt, false);
-                }
+                y = s.pos.Y;
             }
+            return events;
+        }
 
-            return Misc.EventPresent(events, ev);
+        private Event doStepsTillEvent(State s0, double dt, bool useBat)
+        {
+            Event events = 0;
+            while (events == 0 || events == Event.MAX_HEIGHT)
+            {
+                events = doStep(s0, dt, useBat);
+            }
+            return events;
+        }
+
+        private bool expectEvent(State s0, double dt, Event ev, bool useBat = false)
+        {
+            return Misc.EventPresent(doStepsTillEvent(s0, dt, useBat), ev);
         }
     }
 }
