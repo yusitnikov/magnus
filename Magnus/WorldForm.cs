@@ -66,6 +66,7 @@ namespace Magnus
             var drawer = new WorldDrawer(graphics, Font, screenWidth, screenHeight);
             drawer.DrawWorld(world.State);
             drawer.DrawString("FPS: " + fps, 0, 0);
+            drawer.DrawString("Speed: " + world.TimeCoeff, 1, 0);
             Player leftPlayer = world.State.Players[Constants.LeftPlayerIndex], rightPlayer = world.State.Players[Constants.RightPlayerIndex];
             drawer.DrawString(leftPlayer.Strategy + " " + leftPlayer.Score + " - " + rightPlayer.Score + " " + rightPlayer.Strategy, 0, 0.5f);
             for (var strategyIndex = 0; strategyIndex < strategies.Count; strategyIndex++)
