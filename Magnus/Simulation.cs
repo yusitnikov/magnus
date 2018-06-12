@@ -26,7 +26,7 @@ namespace Magnus
 
             while (!state.GameState.IsOneOf(GameState.FlyingToBat | GameState.Failed))
             {
-                var events = state.DoStep(initialState, Constants.SimulationFrameTime * 10);
+                var events = state.DoStep(initialState, Constants.SimplifiedSimulationFrameTime);
                 MaxHeight = Math.Max(MaxHeight, state.Ball.Position.Y);
                 if (events.HasFlag(Event.NetCross))
                 {
@@ -38,22 +38,18 @@ namespace Magnus
                 return;
             }
 
-            if (NetCrossY < Constants.NetHeight + Constants.BallRadius * 2)
-            {
-                return;
-            }
-            if (serving && NetCrossY < Constants.NetHeight * 1.5)
+            if (NetCrossY < Constants.MaxNetCrossY)
             {
                 return;
             }
 
             TableHitX = state.Ball.Position.X;
-            if (Math.Abs(TableHitX) < Constants.HalfTableWidth * 0.2 || Math.Abs(TableHitX) > Constants.HalfTableWidth * 0.8)
+            if (Math.Abs(TableHitX) < Constants.MinTableHitX || Math.Abs(TableHitX) > Constants.MaxTableHitX)
             {
                 return;
             }
 
-            if (MaxHeight > Constants.NetHeight * 4)
+            if (MaxHeight > Constants.MaxBallMaxHeight)
             {
                 return;
             }

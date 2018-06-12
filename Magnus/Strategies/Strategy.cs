@@ -9,17 +9,33 @@
 
         public virtual double GetAttackAngle()
         {
-            return Misc.Rnd(-30, 60);
+            return Misc.FromDegrees(Misc.Rnd(-30, 60));
         }
 
         public virtual double GetVelocityAttackAngle()
         {
-            return Misc.Rnd(-90, 90);
+            return Misc.FromDegrees(Misc.Rnd(-90, 90));
         }
 
         public virtual double GetHitSpeed()
         {
             return Misc.Rnd(0, 1);
+        }
+
+        public virtual double GetServeHitSpeed(double ballX)
+        {
+            return Misc.Rnd(0.2, 0.7) * ballX / Constants.HalfTableWidth;
+        }
+
+        public virtual double GetServeAttackAngle()
+        {
+            return Misc.FromDegrees(Misc.Rnd(20, 100));
+        }
+
+        public virtual double GetServeVelocityAttackAngle()
+        {
+            var rnd = Misc.Rnd(-1, 1);
+            return Misc.FromDegrees(90 + 60 * rnd * rnd * rnd);
         }
 
         public override string ToString()

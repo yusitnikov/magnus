@@ -9,12 +9,12 @@
 
         public override double GetAttackAngle()
         {
-            return Misc.Rnd(-40, 30);
+            return Misc.FromDegrees(Misc.Rnd(-40, 30));
         }
 
         public override double GetVelocityAttackAngle()
         {
-            return Misc.Rnd(70, 90);
+            return Misc.FromDegrees(Misc.Rnd(70, 90));
         }
 
         public override double GetHitSpeed()

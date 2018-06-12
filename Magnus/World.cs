@@ -4,6 +4,8 @@ namespace Magnus
 {
     class World
     {
+        public const double DefaultTimeCoeff = 7;
+
         public State State;
 
         public double TimeCoeff;
@@ -48,7 +50,7 @@ namespace Magnus
         private double doTimeStep()
         {
             var newTime = DateTime.Now;
-            var dt = (newTime - time).TotalSeconds * TimeCoeff;
+            var dt = (newTime - time).TotalSeconds * Constants.TimeUnit * TimeCoeff / DefaultTimeCoeff;
             time = newTime;
             return dt;
         }

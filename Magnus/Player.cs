@@ -41,10 +41,10 @@ namespace Magnus
             {
                 if (resetAngle)
                 {
-                    Angle = 180 + 90 * Side;
+                    Angle = Misc.FromDegrees(180 + 90 * Side);
                 }
 
-                PrevPosition = Position = new DoublePoint(x * Side, Constants.NetHeight);
+                PrevPosition = Position = new DoublePoint(x * Side, Constants.BatWaitY);
                 Speed = DoublePoint.Empty;
             }
 
@@ -68,15 +68,15 @@ namespace Magnus
             };
         }
 
-        public void DoStep(State s, double dt)
+        public void DoStep(State state, double dt)
         {
             if (Aim != null)
             {
-                bool stillMoving = Aim.UpdatePlayerPosition(s, this);
+                bool stillMoving = Aim.UpdatePlayerPosition(state, this);
 
                 if (!stillMoving)
                 {
-                    MoveToInitialPosition(s.Time);
+                    MoveToInitialPosition(state.Time);
                 }
             }
 
@@ -87,9 +87,9 @@ namespace Magnus
         public void MoveToInitialPosition(double currentTime)
         {
             var readyPosition = Clone();
-            readyPosition.Reset(Constants.HalfTableWidth + Constants.NetHeight * 2, true, false);
+            readyPosition.Reset(Constants.BatWaitX, true, false);
             NeedAim = false;
-            Aim = new Aim(readyPosition, this, currentTime + 10000, currentTime);
+            Aim = new Aim(readyPosition, this, double.PositiveInfinity, currentTime);
         }
 
         public void RequestAim()
@@ -116,9 +116,9 @@ namespace Magnus
 
             if (isServing)
             {
-                double yy = Constants.NetHeight * Misc.Rnd(1, 2);
+                double serveY = Misc.Rnd(Constants.MinBallServeY, Constants.MaxBallServeY);
 
-                while (state.Ball.Speed.Y >= 0 || state.Ball.Position.Y >= yy)
+                while (state.Ball.Speed.Y >= 0 || state.Ball.Position.Y >= serveY)
                 {
                     state.DoStep();
                 }
@@ -141,7 +141,7 @@ namespace Magnus
                 timeCalcState.DoStepsUntilEvent(Event.LowHit);
                 double ballFallTime = timeCalcState.Time - state.Time;
 
-                // Choose a random point to hit and move s2 to it
+                // Choose a random point to hit and move state to it
                 double hitTime = state.Time + Strategy.GetBackHitTime(ballMaxHeightTime, ballFallTime);
                 while (state.Time < hitTime)
                 {
@@ -150,33 +150,32 @@ namespace Magnus
             }
 
             double ballSpeedAngle = state.Ball.Speed.Angle;
-            if (ballSpeedAngle == 180 && Index == Constants.LeftPlayerIndex)
+            if (ballSpeedAngle == Math.PI && Index == Constants.LeftPlayerIndex)
             {
-                ballSpeedAngle = -180;
+                ballSpeedAngle = -Math.PI;
             }
 
-            while (NeedAim && (DateTime.Now - searchStartTime).TotalSeconds < 0.02)
+            while (NeedAim && (DateTime.Now - searchStartTime).TotalSeconds < Constants.MaxThinkTimePerFrame)
             {
                 double hitSpeed, attackAngle, velocityAttackAngle;
                 if (isServing)
                 {
-                    hitSpeed = Constants.MaxPlayerSpeed * Misc.Rnd(0.2, 0.7) * Math.Abs(state.Ball.Position.X) / Constants.HalfTableWidth;
-                    attackAngle = Misc.Rnd(20, 100) * Side;
-                    var rnd = Misc.Rnd(-1, 1);
-                    velocityAttackAngle = (90 + 60 * rnd * rnd * rnd) * Side;
+                    hitSpeed = Constants.MaxPlayerSpeed * Strategy.GetServeHitSpeed(Math.Abs(state.Ball.Position.X));
+                    attackAngle = Strategy.GetServeAttackAngle() * Side;
+                    velocityAttackAngle = Strategy.GetServeVelocityAttackAngle() * Side;
                 }
                 else
                 {
                     hitSpeed = Constants.MaxPlayerSpeed * Strategy.GetHitSpeed();
                     attackAngle = Strategy.GetAttackAngle() * Side;
                     velocityAttackAngle = Strategy.GetVelocityAttackAngle() * Side;
-                    velocityAttackAngle = Math.Max(velocityAttackAngle, attackAngle - 70);
-                    velocityAttackAngle = Math.Min(velocityAttackAngle, attackAngle + 70);
+                    velocityAttackAngle = Math.Max(velocityAttackAngle, attackAngle - Constants.MaxAttackAngleDifference);
+                    velocityAttackAngle = Math.Min(velocityAttackAngle, attackAngle + Constants.MaxAttackAngleDifference);
                 }
 
                 player.Position = state.Ball.Position + Constants.BallRadius * DoublePoint.FromAngle(ballSpeedAngle - attackAngle);
                 player.Speed = -hitSpeed * DoublePoint.FromAngle(ballSpeedAngle - velocityAttackAngle);
-                player.Angle = 180 + ballSpeedAngle - attackAngle;
+                player.Angle = Math.PI + ballSpeedAngle - attackAngle;
 
                 var newAim = new Aim(player, this, state.Time, initialTime);
                 if (newAim.HasTimeToReact)

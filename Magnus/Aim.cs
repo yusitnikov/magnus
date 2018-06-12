@@ -28,14 +28,16 @@ namespace Magnus
             }
             else
             {
-                forceToHit = Math.Min(Math.Max(hitSpeed / (0.2 * 7), hitSpeed * hitSpeed / 2 / 200), Constants.MaxPlayerForce);
-                timeToHit = hitSpeed / forceToHit;
+                var forceToHaveEnoughTime = Misc.GetForceBySpeedAndTime(hitSpeed, Constants.MinTimeToMoveBeforeHit);
+                var forceToHaveEnoughDistance = Misc.GetForceBySpeedAndDistance(hitSpeed, Constants.MinDistanceToMoveBeforeHit);
+                forceToHit = Math.Min(Math.Max(forceToHaveEnoughTime, forceToHaveEnoughDistance), Constants.MaxPlayerForce);
+                timeToHit = Misc.GetTimeBySpeedAndForce(hitSpeed, forceToHit);
             }
 
             moveVector = getHitPosition(-timeToHit) - aimPlayer0.Position;
             moveLength = moveVector.Length;
-            forceMoveLength = Math.Min(moveLength / 2, Constants.MaxPlayerSpeed * Constants.MaxPlayerSpeed / 2 / Constants.MaxPlayerForce);
-            timeToForceMove = Math.Sqrt(2 * forceMoveLength / Constants.MaxPlayerForce);
+            forceMoveLength = Math.Min(moveLength / 2, Misc.GetDistanceBySpeedAndForce(Constants.MaxPlayerSpeed, Constants.MaxPlayerForce));
+            timeToForceMove = Misc.GetTimeByDistanceAndForce(forceMoveLength, Constants.MaxPlayerForce);
             timeToSpeedMove = (moveLength - 2 * forceMoveLength) / Constants.MaxPlayerSpeed;
             timeToMove = timeToForceMove * 2 + timeToSpeedMove;
 
@@ -68,7 +70,7 @@ namespace Magnus
                 double currentMoveLength;
                 if (timeFromState0 <= timeToForceMove)
                 {
-                    currentMoveLength = Constants.MaxPlayerForce * timeFromState0 * timeFromState0 / 2;
+                    currentMoveLength = Misc.GetDistanceByForceAndTime(Constants.MaxPlayerForce, timeFromState0);
                 }
                 else
                 {
@@ -84,7 +86,7 @@ namespace Magnus
 
                         if (timeFromMoveEnd < 0)
                         {
-                            currentMoveLength = moveLength - Constants.MaxPlayerForce * timeFromMoveEnd * timeFromMoveEnd / 2;
+                            currentMoveLength = moveLength - Misc.GetDistanceByForceAndTime(Constants.MaxPlayerForce, timeFromMoveEnd);
                         }
                         else
                         {
@@ -94,7 +96,7 @@ namespace Magnus
                 }
 
                 p.Position = aimPlayer0.Position + currentMoveLength * moveVector.Normal;
-                p.Angle = aimPlayer0.Angle + (aimPlayer.Angle - aimPlayer0.Angle) * Math.Min((s.Time - aimT0) / (timeToForceMove * 2 + timeToSpeedMove), 1);
+                p.Angle = aimPlayer0.Angle + (aimPlayer.Angle - aimPlayer0.Angle) * Math.Min((s.Time - aimT0) / timeToMove, 1);
             }
 
             return true;

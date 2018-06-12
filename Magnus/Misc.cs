@@ -31,14 +31,43 @@ namespace Magnus
             return Math.Sqrt(x * x + y * y);
         }
 
-        public static double Sin(double a)
+        public static double FromDegrees(double degrees)
         {
-            return Math.Sin(a * Math.PI / 180);
+            return degrees / 180 * Math.PI;
         }
 
-        public static double Cos(double a)
+        #region Forced movement
+
+        public static double GetForceBySpeedAndTime(double speed, double time)
         {
-            return Math.Cos(a * Math.PI / 180);
+            return speed / time;
         }
+
+        public static double GetTimeBySpeedAndForce(double speed, double force)
+        {
+            return speed / force;
+        }
+
+        public static double GetForceBySpeedAndDistance(double speed, double distance)
+        {
+            return speed * speed / 2 / distance;
+        }
+
+        public static double GetDistanceBySpeedAndForce(double speed, double force)
+        {
+            return speed * speed / 2 / force;
+        }
+
+        public static double GetTimeByDistanceAndForce(double distance, double force)
+        {
+            return Math.Sqrt(2 * distance / force);
+        }
+
+        public static double GetDistanceByForceAndTime(double force, double time)
+        {
+            return force * time * time / 2;
+        }
+
+        #endregion
     }
 }

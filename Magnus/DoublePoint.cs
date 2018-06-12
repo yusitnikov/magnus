@@ -15,11 +15,11 @@ namespace Magnus
             get
             {
                 var len = Length;
-                return len == 0 ? DoublePoint.Empty : this / len;
+                return len == 0 ? Empty : this / len;
             }
         }
 
-        public double Angle => Math.Atan2(X, Y) / Math.PI * 180;
+        public double Angle => Math.Atan2(X, Y);
 
         public DoublePoint(double x, double y)
         {
@@ -29,7 +29,7 @@ namespace Magnus
 
         public static DoublePoint FromAngle(double a)
         {
-            return new DoublePoint(Misc.Sin(a), Misc.Cos(a));
+            return new DoublePoint(Math.Sin(a), Math.Cos(a));
         }
 
         public DoublePoint RotateRight90()

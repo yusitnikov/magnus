@@ -15,7 +15,7 @@ namespace Magnus
             this.font = font;
             this.screenWidth = screenWidth;
             this.screenHeight = screenHeight;
-            screenCoeff = 0.4 * screenWidth / Constants.TableWidth;
+            screenCoeff = Constants.ScreenZoom * screenWidth / Constants.TableWidth;
         }
 
         private PointF getPointProjection(DoublePoint point)

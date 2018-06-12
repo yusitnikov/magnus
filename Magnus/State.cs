@@ -34,8 +34,8 @@ namespace Magnus
         public void Reset(bool resetPosition, bool resetAngle)
         {
             GameState = GameState.Serving;
-            Ball.Position = new DoublePoint((Constants.HalfTableWidth + Misc.Rnd(100, 400)) * Misc.GetPlayerSideByIndex(HitSide), Constants.NetHeight);
-            Ball.Speed = new DoublePoint(0, Misc.Rnd(150, 400));
+            Ball.Position = new DoublePoint((Constants.HalfTableWidth + Misc.Rnd(Constants.MinBallServeX, Constants.MaxBallServeX)) * Misc.GetPlayerSideByIndex(HitSide), Constants.NetHeight);
+            Ball.Speed = new DoublePoint(0, Misc.Rnd(Constants.MinBallServeThrowSpeed, Constants.MaxBallServeThrowSpeed));
             Ball.AngularSpeed = 0;
 
             foreach (var player in Players)
@@ -73,8 +73,7 @@ namespace Magnus
                 events |= Event.NetCross;
             }
 
-            var lowCrossY = -Constants.NetHeight * 2;
-            if (Ball.Position.Y <= lowCrossY && prevBallState.Position.Y > lowCrossY)
+            if (Ball.Position.Y <= Constants.MinHitY && prevBallState.Position.Y > Constants.MinHitY)
             {
                 events |= Event.LowCross;
             }
@@ -96,10 +95,8 @@ namespace Magnus
         {
             var events = Event.None;
 
-            for (var playerIndex = 0; playerIndex <= 1; playerIndex++)
+            foreach (var player in Players)
             {
-                var player = Players[playerIndex];
-
                 if (updateBat)
                 {
                     player.DoStep(this, dt);
@@ -109,20 +106,20 @@ namespace Magnus
                 if (Math.Abs(ballInBatSystem.Position.X) < Constants.BatRadius + Constants.BallRadius && Math.Abs(ballInBatSystem.Position.Y) <= Constants.BallRadius && ballInBatSystem.Speed.Y <= 0)
                 {
                     events |= Event.BatHit;
-                    events |= playerIndex == Constants.RightPlayerIndex ? Event.RightBatHit : Event.LeftBatHit;
+                    events |= player.Index == Constants.RightPlayerIndex ? Event.RightBatHit : Event.LeftBatHit;
 
                     ballInBatSystem.ProcessHit(Constants.BallHitHorizontalCoeff, Constants.BallHitVerticalCoeff);
                     Ball = ballInBatSystem.ProjectFromBat(player);
 
                     if (GameState != GameState.Failed)
                     {
-                        if (playerIndex != HitSide || GameState.IsOneOf(GameState.NotReadyToHit))
+                        if (player.Index != HitSide || GameState.IsOneOf(GameState.NotReadyToHit))
                         {
                             endSet(false);
                         }
                         else
                         {
-                            HitSide = Misc.GetOtherPlayerIndex(playerIndex);
+                            HitSide = Misc.GetOtherPlayerIndex(player.Index);
                             switch (GameState)
                             {
                                 case GameState.Serving:

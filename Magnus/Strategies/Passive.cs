@@ -9,7 +9,7 @@
 
         public override double GetAttackAngle()
         {
-            return Misc.Rnd(-20, 40, true);
+            return Misc.FromDegrees(Misc.Rnd(-20, 40, true));
         }
 
         public override double GetHitSpeed()

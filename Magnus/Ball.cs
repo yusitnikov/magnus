@@ -87,14 +87,13 @@ namespace Magnus
 
         public void ProcessHit(double horizontalHitCoeff, double verticalHitCoeff)
         {
-            const double angularSpeedToPlainCoeff = Constants.BallRadius * Math.PI / 180;
             Position.Y = 2 * Constants.BallRadius - Position.Y;
             Speed.Y *= -verticalHitCoeff;
-            double rollSpeedAtPoint = -AngularSpeed * angularSpeedToPlainCoeff;
+            double rollSpeedAtPoint = -AngularSpeed * Constants.BallRadius;
             double force = -horizontalHitCoeff * (rollSpeedAtPoint + Speed.X);
             rollSpeedAtPoint += force;
             Speed.X += force;
-            AngularSpeed = -rollSpeedAtPoint / angularSpeedToPlainCoeff;
+            AngularSpeed = -rollSpeedAtPoint / Constants.BallRadius;
         }
     }
 }
