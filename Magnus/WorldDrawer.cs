@@ -58,11 +58,11 @@ namespace Magnus
             drawLine(player.Position + positionDelta, player.Position - positionDelta, player.NeedAim ? Pens.Red : Pens.Black);
         }
 
-        public void DrawBall(State state)
+        public void DrawBall(Ball ball)
         {
-            drawCircle(state.Position, Constants.BallRadius);
-            var positionDelta = Constants.BallRadius * DoublePoint.FromAngle(state.Angle);
-            drawLine(state.Position + positionDelta, state.Position - positionDelta);
+            drawCircle(ball.Position, Constants.BallRadius);
+            var positionDelta = Constants.BallRadius * DoublePoint.FromAngle(ball.Angle);
+            drawLine(ball.Position + positionDelta, ball.Position - positionDelta);
         }
 
         public void DrawWorld(State state)
@@ -72,7 +72,7 @@ namespace Magnus
             {
                 DrawPlayer(player);
             }
-            DrawBall(state);
+            DrawBall(state.Ball);
         }
 
         public void DrawString(string text, int line, float alignment)
