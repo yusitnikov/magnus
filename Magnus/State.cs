@@ -150,7 +150,10 @@ namespace Magnus
                 {
                     HitSide = Misc.GetOtherPlayerIndex(HitSide);
                 }
-                ++Players[HitSide].Score;
+                if (Players != null)
+                {
+                    ++Players[HitSide].Score;
+                }
                 EndSet();
             }
         }
@@ -259,7 +262,10 @@ namespace Magnus
             GameState = state.GameState;
             Time = state.Time;
             Ball = state.Ball.Clone();
-            Players = new Player[] { state.Players[0].Clone(), state.Players[1].Clone() };
+            if (copyPlayers)
+            {
+                Players = new Player[] { state.Players[0].Clone(), state.Players[1].Clone() };
+            }
         }
 
         public State Clone(bool copyPlayers = true)
