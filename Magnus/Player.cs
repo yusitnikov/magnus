@@ -13,7 +13,7 @@ namespace Magnus
 
         public Strategy Strategy;
 
-        public DoublePoint Position, PrevPosition, Speed;
+        public DoublePoint Position, Speed;
 
         public double Angle;
 
@@ -29,7 +29,7 @@ namespace Magnus
             Index = index;
             Score = 0;
             Strategy = new Strategy();
-            Position = PrevPosition = Speed = DoublePoint.Empty;
+            Position = Speed = DoublePoint.Empty;
             Angle = 0;
             NeedAim = false;
             Aim = null;
@@ -44,7 +44,7 @@ namespace Magnus
                     Angle = Misc.FromDegrees(180 + 90 * Side);
                 }
 
-                PrevPosition = Position = new DoublePoint(x * Side, Constants.BatWaitY);
+                Position = new DoublePoint(x * Side, Constants.BatWaitY);
                 Speed = DoublePoint.Empty;
             }
 
@@ -60,7 +60,6 @@ namespace Magnus
                 Score = Score,
                 Strategy = Strategy,
                 Position = Position,
-                PrevPosition = PrevPosition,
                 Speed = Speed,
                 Angle = Angle,
                 NeedAim = false,
@@ -70,6 +69,8 @@ namespace Magnus
 
         public void DoStep(State state, double dt)
         {
+            var prevPosition = Position;
+
             if (Aim != null)
             {
                 bool stillMoving = Aim.UpdatePlayerPosition(state, this);
@@ -80,8 +81,7 @@ namespace Magnus
                 }
             }
 
-            Speed = (Position - PrevPosition) / dt;
-            PrevPosition = Position;
+            Speed = (Position - prevPosition) / dt;
         }
 
         public void MoveToInitialPosition(double currentTime)
