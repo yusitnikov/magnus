@@ -112,16 +112,25 @@ namespace Magnus
             var isServing = state.GameState == GameState.Serving;
 
             state = state.Clone(true);
-            var player = state.Players[Index];
+
+            Action<State> doStepsTillHitTime;
 
             if (isServing)
             {
-                double serveY = Misc.Rnd(Constants.MinBallServeY, Constants.MaxBallServeY);
-
-                while (state.Ball.Speed.Y >= 0 || state.Ball.Position.Y >= serveY)
+                while (state.Ball.Speed.Y >= 0 || state.Ball.Position.Y >= Constants.MaxBallServeY)
                 {
                     state.DoStep();
                 }
+
+                doStepsTillHitTime = attemptState =>
+                {
+                    double serveY = Misc.Rnd(Constants.MinBallServeY, Constants.MaxBallServeY);
+
+                    while (state.Ball.Speed.Y >= 0 || attemptState.Ball.Position.Y >= serveY)
+                    {
+                        attemptState.DoStep();
+                    }
+                };
             }
             else
             {
@@ -141,26 +150,34 @@ namespace Magnus
                 timeCalcState.DoStepsUntilEvent(Event.LowHit);
                 double ballFallTime = timeCalcState.Time - state.Time;
 
-                // Choose a random point to hit and move state to it
-                double hitTime = state.Time + Strategy.GetBackHitTime(ballMaxHeightTime, ballFallTime);
-                while (state.Time < hitTime)
+                doStepsTillHitTime = attemptState =>
                 {
-                    state.DoStep();
-                }
-            }
+                    double hitTime = attemptState.Time + Strategy.GetBackHitTime(ballMaxHeightTime, ballFallTime);
 
-            double ballSpeedAngle = state.Ball.Speed.Angle;
-            if (ballSpeedAngle == Math.PI && Index == Constants.LeftPlayerIndex)
-            {
-                ballSpeedAngle = -Math.PI;
+                    while (attemptState.Time < hitTime)
+                    {
+                        attemptState.DoStep();
+                    }
+                };
             }
 
             while (NeedAim && (DateTime.Now - searchStartTime).TotalSeconds < Constants.MaxThinkTimePerFrame)
             {
+                var attemptState = state.Clone(true);
+                doStepsTillHitTime(attemptState);
+
+                var player = attemptState.Players[Index];
+
+                double ballSpeedAngle = attemptState.Ball.Speed.Angle;
+                if (ballSpeedAngle == Math.PI && Index == Constants.LeftPlayerIndex)
+                {
+                    ballSpeedAngle = -Math.PI;
+                }
+
                 double hitSpeed, attackAngle, velocityAttackAngle;
                 if (isServing)
                 {
-                    hitSpeed = Constants.MaxPlayerSpeed * Strategy.GetServeHitSpeed(Math.Abs(state.Ball.Position.X));
+                    hitSpeed = Constants.MaxPlayerSpeed * Strategy.GetServeHitSpeed(Math.Abs(attemptState.Ball.Position.X));
                     attackAngle = Strategy.GetServeAttackAngle() * Side;
                     velocityAttackAngle = Strategy.GetServeVelocityAttackAngle() * Side;
                 }
@@ -173,14 +190,14 @@ namespace Magnus
                     velocityAttackAngle = Math.Min(velocityAttackAngle, attackAngle + Constants.MaxAttackAngleDifference);
                 }
 
-                player.Position = state.Ball.Position + Constants.BallRadius * DoublePoint.FromAngle(ballSpeedAngle - attackAngle);
+                player.Position = attemptState.Ball.Position + Constants.BallRadius * DoublePoint.FromAngle(ballSpeedAngle - attackAngle);
                 player.Speed = -hitSpeed * DoublePoint.FromAngle(ballSpeedAngle - velocityAttackAngle);
                 player.Angle = Math.PI + ballSpeedAngle - attackAngle;
 
-                var newAim = new Aim(player, this, state.Time, initialTime);
+                var newAim = new Aim(player, this, attemptState.Time, initialTime);
                 if (newAim.HasTimeToReact)
                 {
-                    var simulation = new Simulation(state);
+                    var simulation = new Simulation(attemptState);
                     if (simulation.Success)
                     {
                         NeedAim = false;

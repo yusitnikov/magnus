@@ -4,7 +4,7 @@
     {
         public override double GetBackHitTime(double timeTillMaxHeight, double timeTillFall)
         {
-            return timeTillFall * Misc.Rnd(0.5, 0.8);
+            return timeTillMaxHeight + (timeTillFall - timeTillMaxHeight) * Misc.Rnd(0, 0.8);
         }
 
         public override double GetAttackAngle()
@@ -19,7 +19,7 @@
 
         public override double GetHitSpeed()
         {
-            return Misc.Rnd(0.3, 1);
+            return Misc.Rnd(0, 1);
         }
     }
 }
