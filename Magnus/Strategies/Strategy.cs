@@ -24,7 +24,7 @@
 
         public virtual double GetServeHitSpeed(double ballX)
         {
-            return Misc.Rnd(0.2, 0.7) * ballX / Constants.HalfTableWidth;
+            return Misc.Rnd(0.2, 0.7) * ballX / Constants.HalfTableLength;
         }
 
         public virtual double GetServeAttackAngle()

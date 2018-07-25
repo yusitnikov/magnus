@@ -15,7 +15,10 @@ namespace Magnus
 
         public State()
         {
-            Ball = new Ball();
+            Ball = new Ball()
+            {
+                MarkPoint = new DoublePoint3D(Constants.BallRadius, 0, 0)
+            };
             Players = new Player[2];
             for (var playerIndex = 0; playerIndex <= 1; playerIndex++)
             {
@@ -34,9 +37,9 @@ namespace Magnus
         public void Reset(bool resetPosition, bool resetAngle)
         {
             GameState = GameState.Serving;
-            Ball.Position = new DoublePoint((Constants.HalfTableWidth + Misc.Rnd(Constants.MinBallServeX, Constants.MaxBallServeX)) * Misc.GetPlayerSideByIndex(HitSide), Constants.NetHeight);
-            Ball.Speed = new DoublePoint(0, Misc.Rnd(Constants.MinBallServeThrowSpeed, Constants.MaxBallServeThrowSpeed));
-            Ball.AngularSpeed = 0;
+            Ball.Position = new DoublePoint3D((Constants.HalfTableLength + Misc.Rnd(Constants.MinBallServeX, Constants.MaxBallServeX)) * Misc.GetPlayerSideByIndex(HitSide), Constants.NetHeight, 0);
+            Ball.Speed = new DoublePoint3D(0, Misc.Rnd(Constants.MinBallServeThrowSpeed, Constants.MaxBallServeThrowSpeed), 0);
+            Ball.AngularSpeed = DoublePoint3D.Empty;
 
             foreach (var player in Players)
             {
@@ -102,14 +105,13 @@ namespace Magnus
                     player.DoStep(this, dt);
                 }
 
-                var ballInBatSystem = Ball.ProjectToBat(player);
-                if (Math.Abs(ballInBatSystem.Position.X) < Constants.BatRadius + Constants.BallRadius && Math.Abs(ballInBatSystem.Position.Y) <= Constants.BallRadius && ballInBatSystem.Speed.Y <= 0)
+                var ballInBatSystem = Ball.ProjectToSurface(player);
+                if (ballInBatSystem.Position.Horizontal.Length < Constants.BatRadius + Constants.BallRadius && ballInBatSystem.Position.Vertical.Length <= Constants.BallRadius && DoublePoint3D.ScalarMult(ballInBatSystem.Speed.Vertical, player.Normal) <= 0)
                 {
                     events |= Event.BatHit;
                     events |= player.Index == Constants.RightPlayerIndex ? Event.RightBatHit : Event.LeftBatHit;
 
-                    ballInBatSystem.ProcessHit(Constants.BallHitHorizontalCoeff, Constants.BallHitVerticalCoeff);
-                    Ball = ballInBatSystem.ProjectFromBat(player);
+                    Ball.ProcessHit(player, Constants.BallHitHorizontalCoeff, Constants.BallHitVerticalCoeff);
 
                     if (GameState != GameState.Failed)
                     {
@@ -173,14 +175,15 @@ namespace Magnus
                 endSet(GameState.IsOneOf(GameState.NotReadyToHit));
             }
 
-            var tableEndX = Constants.HalfTableWidth + Constants.BallRadius;
-            if (Ball.Position.Y < Constants.BallRadius && Math.Abs(Ball.Position.X) < tableEndX)
+            var tableEndX = Constants.HalfTableLength + Constants.BallRadius;
+            var tableEndZ = Constants.HalfTableWidth + Constants.BallRadius;
+            if (Ball.Position.Y < Constants.BallRadius && Math.Abs(Ball.Position.X) < tableEndX && Math.Abs(Ball.Position.Z) < tableEndZ)
             {
                 if (Ball.Speed.Y < 0 && Ball.Position.Y - Constants.BallRadius > Math.Abs(Ball.Position.X) - tableEndX)
                 {
                     events |= Event.TableHit;
 
-                    Ball.ProcessHit(Constants.TableHitHorizontalCoeff, Constants.TableHitVerticalCoeff);
+                    Ball.ProcessHit(Surface.Horizontal, Constants.TableHitHorizontalCoeff, Constants.TableHitVerticalCoeff);
 
                     var isHitSide = Ball.Side == Misc.GetPlayerSideByIndex(HitSide);
                     switch (GameState)
@@ -230,9 +233,9 @@ namespace Magnus
             return doStep(relativeState, dt, useBat);
         }
 
-        public Event DoStepWithBatUpdate(State relativeState, double dt)
+        public Event DoStepWithBatUpdate()
         {
-            return doStep(relativeState, dt, true, true);
+            return doStep(null, Constants.SimulationFrameTime, true, true);
         }
 
         public bool DoStepsUntilGameState(GameState gameStates, State relativeState = null, double dt = Constants.SimulationFrameTime, bool useBat = false)

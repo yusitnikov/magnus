@@ -9,7 +9,7 @@ namespace Magnus
 
         private readonly double hitSpeed, forceToHit, timeToHit;
 
-        private readonly DoublePoint moveVector;
+        private readonly DoublePoint3D moveVector;
         private readonly double moveLength, forceMoveLength, timeToForceMove, timeToSpeedMove, timeToMove;
 
         public readonly bool HasTimeToReact;
@@ -44,7 +44,7 @@ namespace Magnus
             HasTimeToReact = timeToMove + timeToHit <= aimT - aimT0;
         }
 
-        private DoublePoint getHitPosition(double t)
+        private DoublePoint3D getHitPosition(double t)
         {
             return aimPlayer.Position + aimPlayer.Speed * t - aimPlayer.Speed.Normal * (forceToHit * t * Math.Abs(t) / 2);
         }
@@ -61,7 +61,8 @@ namespace Magnus
             if (timeFromState > -timeToHit)
             {
                 p.Position = getHitPosition(timeFromState);
-                p.Angle = aimPlayer.Angle;
+                p.AnglePitch = aimPlayer.AnglePitch;
+                p.AngleYaw = aimPlayer.AngleYaw;
             }
             else
             {
@@ -96,7 +97,9 @@ namespace Magnus
                 }
 
                 p.Position = aimPlayer0.Position + currentMoveLength * moveVector.Normal;
-                p.Angle = aimPlayer0.Angle + (aimPlayer.Angle - aimPlayer0.Angle) * Math.Min((s.Time - aimT0) / timeToMove, 1);
+                var angleCoeff = Math.Min((s.Time - aimT0) / timeToMove, 1);
+                p.AnglePitch = aimPlayer0.AnglePitch + Misc.NormalizeAngle(aimPlayer.AnglePitch - aimPlayer0.AnglePitch) * angleCoeff;
+                p.AngleYaw = aimPlayer0.AngleYaw + Misc.NormalizeAngle(aimPlayer.AngleYaw - aimPlayer0.AngleYaw) * angleCoeff;
             }
 
             return true;

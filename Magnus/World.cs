@@ -74,7 +74,7 @@ namespace Magnus
 
             for (var frame = 0; frame < intFramesTime; frame++)
             {
-                var events = State.DoStepWithBatUpdate(null, Constants.SimulationFrameTime);
+                var events = State.DoStepWithBatUpdate();
 
                 if (events.HasFlag(Event.BatHit))
                 {

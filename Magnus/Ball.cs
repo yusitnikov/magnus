@@ -4,15 +4,19 @@ namespace Magnus
 {
     class Ball
     {
-        public DoublePoint Position, Speed;
-        public double Angle, AngularSpeed;
+        public static readonly DoublePoint3D GravityForce = new DoublePoint3D(0, -Constants.GravityForce, 0);
+
+        public DoublePoint3D Position, Speed;
+        public DoublePoint3D AngularSpeed;
+        // A point on the ball that rotates with the ball and indicates ball rotation in UI
+        public DoublePoint3D MarkPoint;
 
         public int Side => Math.Sign(Position.X);
 
         public void CopyFrom(Ball ball)
         {
             Position = ball.Position;
-            Angle = ball.Angle;
+            MarkPoint = ball.MarkPoint;
             Speed = ball.Speed;
             AngularSpeed = ball.AngularSpeed;
         }
@@ -26,74 +30,87 @@ namespace Magnus
 
         public void DoStep(double dt, bool simplified)
         {
-            var simplifiedSpeed = simplified ? new DoublePoint(Speed.X, 0) : Speed;
-            DoublePoint force = Constants.BallLiftCoeff * AngularSpeed * simplifiedSpeed.RotateRight90() - Constants.BallDumpCoeff * simplifiedSpeed.Length * Speed - new DoublePoint(0, Constants.GravityForce);
-            double angularForce = Constants.BallAngularDumpCoeff * AngularSpeed * Math.Sqrt(Math.Abs(AngularSpeed));
+            var simplifiedSpeed = simplified ? new DoublePoint3D(Speed.X, 0, Speed.Z) : Speed;
+            // V' = L V x W - D |V| V + G
+            DoublePoint3D force = Constants.BallLiftCoeff * DoublePoint3D.VectorMult(simplifiedSpeed, AngularSpeed) - Constants.BallDumpCoeff * simplifiedSpeed.Length * Speed + GravityForce;
+            // W' = -AD W sqrt |W|
+            DoublePoint3D angularForce = -Constants.BallAngularDumpCoeff * AngularSpeed * Math.Sqrt(AngularSpeed.Length);
 
             Position += Speed * dt + force * (dt * dt / 2);
-            Angle += AngularSpeed * dt;
+            MarkPoint = MarkPoint.RotateByAngle3D(AngularSpeed * dt).Normal * Constants.BallRadius;
             Speed += force * dt;
-            AngularSpeed -= angularForce * dt;
+            AngularSpeed += angularForce * dt;
         }
 
         public void DoStepSimplified(Ball relativeBallState, double dt)
         {
-            double angularSpeedCharacteristic = calcAngularSpeedCharacteristic(relativeBallState.AngularSpeed, dt);
-            AngularSpeed = Math.Sign(relativeBallState.AngularSpeed) / (angularSpeedCharacteristic * angularSpeedCharacteristic);
-            Speed.X = 1 / (Constants.BallDumpCoeff * Math.Sign(relativeBallState.Speed.X) * dt + 1 / relativeBallState.Speed.X);
-            Speed.Y = (relativeBallState.Speed.Y / relativeBallState.Speed.X - Constants.BallLiftCoeff * calcAngularSpeedCharacteristicDefiniteIntegral(relativeBallState.AngularSpeed, dt) - Constants.GravityForce * (Constants.BallDumpCoeff * Math.Sign(relativeBallState.Speed.X) * dt * dt / 2 + dt / relativeBallState.Speed.X)) * Speed.X;
+            // V_v0, V_h0
+            var speedProjection = relativeBallState.Speed.ProjectToNormalVector(Surface.Horizontal.Normal);
+            // W_v0, W_h0
+            var angularSpeedProjection = relativeBallState.AngularSpeed.ProjectToNormalVector(Surface.Horizontal.Normal);
+
+            // W' = -AD W sqrt |W|
+            // kf = AD sqrt |W_0| / 2
+            var angularSpeedDumpCoeff = Constants.BallAngularDumpCoeff * Math.Sqrt(relativeBallState.AngularSpeed.Length) / 2;
+            // f = kf t + 1
+            var angularSpeedDumpFunction = angularSpeedDumpCoeff * dt + 1;
+            // int dt / f^2 = (1 - 1 / f) / kf
+            var angularSpeedDumpFunctionIntegral = (1 - 1 / angularSpeedDumpFunction) / angularSpeedDumpCoeff;
+            // W = W_0 / f^2
+            AngularSpeed = relativeBallState.AngularSpeed / (angularSpeedDumpFunction * angularSpeedDumpFunction);
+
+            // V_h' = L V_h x W_v - D |V_h| V_h
+            // kg = D |V_h0|
+            var horizontalSpeedDumpCoeff = Constants.BallDumpCoeff * speedProjection.Horizontal.Length;
+            // g = kg t + 1
+            var horizontalSpeedDumpFunction = horizontalSpeedDumpCoeff * dt + 1;
+            // int g dt = kg t^2/2 + t
+            var horizontalSpeedDumpFunctionIntegral = horizontalSpeedDumpCoeff * dt * dt / 2 + dt;
+            // |V_h| = |V_h0| / g
+            // V_h = rotate(V_h0 / g, L W_v0 int dt / f^2)
+            var horizontalSpeed = (speedProjection.Horizontal / horizontalSpeedDumpFunction).RotateByAngle3D(Constants.BallLiftCoeff * angularSpeedDumpFunctionIntegral * angularSpeedProjection.Vertical);
+            Speed.X = horizontalSpeed.X;
+            Speed.Z = horizontalSpeed.Z;
+
+            // V_v' = L V_h0 x W_h / g - D |V_h| V_v + G
+            // V_v = (V_v0 + L V_h0 x W_h0 (int dt / f^2) + G (int g dt)) / g
+            var verticalSpeed = (speedProjection.Vertical + Constants.BallLiftCoeff * angularSpeedDumpFunctionIntegral * DoublePoint3D.VectorMult(speedProjection.Horizontal, angularSpeedProjection.Horizontal) + GravityForce * horizontalSpeedDumpFunctionIntegral) / horizontalSpeedDumpFunction;
+            Speed.Y = verticalSpeed.Y;
         }
 
-        private double calcAngularSpeedCharacteristic(double angularSpeed, double t)
+        public struct ProjectionToSurface
         {
-            return Constants.BallAngularDumpCoeff * t / 2 + 1 / Math.Sqrt(Math.Abs(angularSpeed));
+            public DoublePoint3D.ProjectionToNormal Position, Speed;
         }
 
-        private double calcAngularSpeedCharacteristicIndefiniteIntegral(double angularSpeed, double t)
+        public ProjectionToSurface ProjectToSurface(ASurface surface)
         {
-            return -Math.Sign(angularSpeed) * 2 / Constants.BallAngularDumpCoeff / calcAngularSpeedCharacteristic(angularSpeed, t);
-        }
-
-        private double calcAngularSpeedCharacteristicDefiniteIntegral(double angularSpeed, double t)
-        {
-            return calcAngularSpeedCharacteristicIndefiniteIntegral(angularSpeed, t) - calcAngularSpeedCharacteristicIndefiniteIntegral(angularSpeed, 0);
-        }
-
-        public Ball ProjectToBat(Player player)
-        {
-            var batNormal = DoublePoint.FromAngle(player.Angle);
-
-            return new Ball()
+            var surfaceNormal = surface.Normal;
+            return new ProjectionToSurface()
             {
-                Position = (Position - player.Position).ProjectToNormalVector(batNormal),
-                Speed = (Speed - player.Speed).ProjectToNormalVector(batNormal),
-                Angle = Angle - player.Angle,
-                AngularSpeed = AngularSpeed
+                Position = (Position - surface.Position).ProjectToNormalVector(surfaceNormal),
+                Speed = (Speed - surface.Speed).ProjectToNormalVector(surfaceNormal)
             };
         }
 
-        public Ball ProjectFromBat(Player player)
+        public void RestoreFromSurfaceProjection(ASurface surface, ProjectionToSurface projection)
         {
-            var batNormal = DoublePoint.FromAngle(player.Angle);
-
-            return new Ball()
-            {
-                Position = player.Position + Position.ProjectFromNormalVector(batNormal),
-                Speed = player.Speed + Speed.ProjectFromNormalVector(batNormal),
-                Angle = player.Angle + Angle,
-                AngularSpeed = AngularSpeed
-            };
+            Position = surface.Position + projection.Position.Full;
+            Speed = surface.Speed + projection.Speed.Full;
         }
 
-        public void ProcessHit(double horizontalHitCoeff, double verticalHitCoeff)
+        public void ProcessHit(ASurface surface, double horizontalHitCoeff, double verticalHitCoeff)
         {
-            Position.Y = 2 * Constants.BallRadius - Position.Y;
-            Speed.Y *= -verticalHitCoeff;
-            double rollSpeedAtPoint = -AngularSpeed * Constants.BallRadius;
-            double force = -horizontalHitCoeff * (rollSpeedAtPoint + Speed.X);
-            rollSpeedAtPoint += force;
-            Speed.X += force;
-            AngularSpeed = -rollSpeedAtPoint / Constants.BallRadius;
+            var surfaceNormal = surface.Normal;
+            var projection = ProjectToSurface(surface);
+            projection.Position.Vertical = 2 * Constants.BallRadius * surfaceNormal - projection.Position.Vertical;
+            projection.Speed.Vertical *= -verticalHitCoeff;
+            var ballPoint = -Constants.BallRadius * surfaceNormal;
+            var fullPerpendicularSpeed = projection.Speed.Horizontal + DoublePoint3D.VectorMult(ballPoint, AngularSpeed);
+            var force = -horizontalHitCoeff * fullPerpendicularSpeed;
+            projection.Speed.Horizontal += force;
+            AngularSpeed += DoublePoint3D.VectorMult(force, ballPoint.Normal) / Constants.BallRadius;
+            RestoreFromSurfaceProjection(surface, projection);
         }
     }
 }

@@ -3,7 +3,7 @@ using System;
 
 namespace Magnus
 {
-    class Player
+    class Player : ASurface
     {
         public int Index;
 
@@ -13,9 +13,19 @@ namespace Magnus
 
         public Strategy Strategy;
 
-        public DoublePoint Position, Speed;
+        public double AnglePitch, AngleYaw;
 
-        public double Angle;
+        public override DoublePoint3D Normal
+        {
+            get => TranslateVectorFromBatCoords(DoublePoint3D.YAxis);
+            set
+            {
+                AnglePitch = value.Pitch;
+                AngleYaw = value.Yaw;
+            }
+        }
+
+        public DoublePoint3D DefaultNormal => new DoublePoint3D(-Side, 0, 0);
 
         public bool NeedAim;
         public Aim Aim;
@@ -29,10 +39,20 @@ namespace Magnus
             Index = index;
             Score = 0;
             Strategy = new Strategy();
-            Position = Speed = DoublePoint.Empty;
-            Angle = 0;
+            Position = Speed = DoublePoint3D.Empty;
+            Normal = DefaultNormal;
             NeedAim = false;
             Aim = null;
+        }
+
+        public DoublePoint3D TranslateVectorFromBatCoords(DoublePoint3D point)
+        {
+            return point.RotatePitch(AnglePitch).RotateYaw(AngleYaw);
+        }
+
+        public DoublePoint3D TranslatePointFromBatCoords(DoublePoint3D point)
+        {
+            return Position + TranslateVectorFromBatCoords(point);
         }
 
         public void Reset(double x, bool resetPosition, bool resetAngle)
@@ -41,11 +61,11 @@ namespace Magnus
             {
                 if (resetAngle)
                 {
-                    Angle = Misc.FromDegrees(180 + 90 * Side);
+                    Normal = DefaultNormal;
                 }
 
-                Position = new DoublePoint(x * Side, Constants.BatWaitY);
-                Speed = DoublePoint.Empty;
+                Position = new DoublePoint3D(x * Side, Constants.BatWaitY, 0);
+                Speed = DoublePoint3D.Empty;
             }
 
             NeedAim = false;
@@ -61,7 +81,8 @@ namespace Magnus
                 Strategy = Strategy,
                 Position = Position,
                 Speed = Speed,
-                Angle = Angle,
+                AnglePitch = AnglePitch,
+                AngleYaw = AngleYaw,
                 NeedAim = false,
                 Aim = null
             };
@@ -168,31 +189,40 @@ namespace Magnus
 
                 var player = attemptState.Players[Index];
 
-                double ballSpeedAngle = attemptState.Ball.Speed.Angle;
-                if (ballSpeedAngle == Math.PI && Index == Constants.LeftPlayerIndex)
+                var ballReverseSpeed = -attemptState.Ball.Speed;
+                double reverseBallSpeedPitch = ballReverseSpeed.Pitch;
+                double reverseBallSpeedYaw = ballReverseSpeed.Yaw;
+                if (attemptState.Ball.Speed.X == 0 && attemptState.Ball.Speed.Z == 0)
                 {
-                    ballSpeedAngle = -Math.PI;
+                    // Yaw for vertical vector is undefined, so use default bat direction instead
+                    reverseBallSpeedYaw = DefaultNormal.Yaw;
                 }
 
-                double hitSpeed, attackAngle, velocityAttackAngle;
+                double hitSpeed, attackPitch, attackYaw, velocityAttackPitch, velocityAttackYaw;
                 if (isServing)
                 {
                     hitSpeed = Constants.MaxPlayerSpeed * Strategy.GetServeHitSpeed(Math.Abs(attemptState.Ball.Position.X));
-                    attackAngle = Strategy.GetServeAttackAngle() * Side;
-                    velocityAttackAngle = Strategy.GetServeVelocityAttackAngle() * Side;
+                    attackPitch = Strategy.GetServeAttackAngle();
+                    velocityAttackPitch = Strategy.GetServeVelocityAttackAngle();
+                    attackYaw = Misc.FromDegrees(Misc.Rnd(-40, 40));
+                    velocityAttackYaw = Misc.FromDegrees(Misc.Rnd(-70, 70));
                 }
                 else
                 {
                     hitSpeed = Constants.MaxPlayerSpeed * Strategy.GetHitSpeed();
-                    attackAngle = Strategy.GetAttackAngle() * Side;
-                    velocityAttackAngle = Strategy.GetVelocityAttackAngle() * Side;
-                    velocityAttackAngle = Math.Max(velocityAttackAngle, attackAngle - Constants.MaxAttackAngleDifference);
-                    velocityAttackAngle = Math.Min(velocityAttackAngle, attackAngle + Constants.MaxAttackAngleDifference);
+                    attackPitch = Strategy.GetAttackAngle();
+                    velocityAttackPitch = Strategy.GetVelocityAttackAngle();
+                    velocityAttackPitch = Math.Max(velocityAttackPitch, attackPitch - Constants.MaxAttackAngleDifference);
+                    velocityAttackPitch = Math.Min(velocityAttackPitch, attackPitch + Constants.MaxAttackAngleDifference);
+                    attackYaw = Misc.FromDegrees(Misc.Rnd(-30, 30));
+                    velocityAttackYaw = Misc.FromDegrees(Misc.Rnd(-30, 30));
                 }
+                //attackYaw = velocityAttackYaw = 0;
 
-                player.Position = attemptState.Ball.Position + Constants.BallRadius * DoublePoint.FromAngle(ballSpeedAngle - attackAngle);
-                player.Speed = -hitSpeed * DoublePoint.FromAngle(ballSpeedAngle - velocityAttackAngle);
-                player.Angle = Math.PI + ballSpeedAngle - attackAngle;
+                player.AngleYaw = reverseBallSpeedYaw + attackYaw;
+                player.AnglePitch = reverseBallSpeedPitch + attackPitch;
+                player.Position = attemptState.Ball.Position - Constants.BallRadius * Normal;
+                player.Speed = hitSpeed * DoublePoint3D.FromAngles(reverseBallSpeedPitch + velocityAttackPitch, reverseBallSpeedYaw + attackYaw + velocityAttackYaw);
 
                 var newAim = new Aim(player, this, attemptState.Time, initialTime);
                 if (newAim.HasTimeToReact)

@@ -31,9 +31,28 @@ namespace Magnus
             return Math.Sqrt(x * x + y * y);
         }
 
+        public static double Hypot(double x, double y, double z)
+        {
+            return Math.Sqrt(x * x + y * y + z * z);
+        }
+
         public static double FromDegrees(double degrees)
         {
             return degrees / 180 * Math.PI;
+        }
+
+        public static double NormalizeAngle(double a)
+        {
+            a %= 2 * Math.PI;
+            if (a >= Math.PI)
+            {
+                a -= 2 * Math.PI;
+            }
+            if (a < -Math.PI)
+            {
+                a += 2 * Math.PI;
+            }
+            return a;
         }
 
         #region Forced movement

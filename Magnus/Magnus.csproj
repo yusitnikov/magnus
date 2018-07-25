@@ -46,9 +46,10 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Aim.cs" />
+    <Compile Include="ASurface.cs" />
     <Compile Include="Ball.cs" />
     <Compile Include="Constants.cs" />
-    <Compile Include="DoublePoint.cs" />
+    <Compile Include="DoublePoint3D.cs" />
     <Compile Include="GameStateExtension.cs" />
     <Compile Include="EventExtension.cs" />
     <Compile Include="Event.cs" />
@@ -62,6 +63,7 @@
     <Compile Include="Strategies\Passive.cs" />
     <Compile Include="Strategies\BackSpinner.cs" />
     <Compile Include="Strategies\TopSpinner.cs" />
+    <Compile Include="Surface.cs" />
     <Compile Include="World.cs" />
     <Compile Include="WorldDrawer.cs" />
     <Compile Include="WorldForm.cs">
