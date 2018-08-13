@@ -2,7 +2,7 @@
 
 namespace Magnus
 {
-    struct DoublePoint3D
+    struct DoublePoint3D : IFormattable
     {
         public static readonly DoublePoint3D Empty = new DoublePoint3D(0, 0, 0);
         public static readonly DoublePoint3D XAxis = new DoublePoint3D(1, 0, 0);
@@ -99,6 +99,8 @@ namespace Magnus
             return p1.X * p2.X + p1.Y * p2.Y + p1.Z * p2.Z;
         }
 
+        #region Operators
+
         public static DoublePoint3D operator +(DoublePoint3D p1, DoublePoint3D p2)
         {
             return new DoublePoint3D(p1.X + p2.X, p1.Y + p2.Y, p1.Z + p2.Z);
@@ -128,5 +130,36 @@ namespace Magnus
         {
             return new DoublePoint3D(p.X / k, p.Y / k, p.Z / k);
         }
+
+        #endregion
+
+        #region ToString
+
+        private string toString(string xString, string yString, string zString)
+        {
+            return "(" + xString + ";" + yString + ";" + zString + ")";
+        }
+
+        public override string ToString()
+        {
+            return toString(X.ToString(), Y.ToString(), Z.ToString());
+        }
+
+        public string ToString(string format)
+        {
+            return toString(X.ToString(format), Y.ToString(format), Z.ToString(format));
+        }
+
+        public string ToString(IFormatProvider formatProvider)
+        {
+            return toString(X.ToString(formatProvider), Y.ToString(formatProvider), Z.ToString(formatProvider));
+        }
+
+        public string ToString(string format, IFormatProvider formatProvider)
+        {
+            return toString(X.ToString(format, formatProvider), Y.ToString(format, formatProvider), Z.ToString(format, formatProvider));
+        }
+
+        #endregion
     }
 }

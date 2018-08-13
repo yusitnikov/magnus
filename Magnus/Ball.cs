@@ -44,38 +44,106 @@ namespace Magnus
 
         public void DoStepSimplified(Ball relativeBallState, double dt)
         {
+            // P_v0, P_h0
+            var positionProjection = relativeBallState.Position.ProjectToNormalVector(Surface.Horizontal.Normal);
             // V_v0, V_h0
             var speedProjection = relativeBallState.Speed.ProjectToNormalVector(Surface.Horizontal.Normal);
             // W_v0, W_h0
             var angularSpeedProjection = relativeBallState.AngularSpeed.ProjectToNormalVector(Surface.Horizontal.Normal);
 
             // W' = -AD W sqrt |W|
-            // kf = AD sqrt |W_0| / 2
+            // kw = AD sqrt |W_0| / 2
             var angularSpeedDumpCoeff = Constants.BallAngularDumpCoeff * Math.Sqrt(relativeBallState.AngularSpeed.Length) / 2;
-            // f = kf t + 1
+            // fw = kw t + 1
             var angularSpeedDumpFunction = angularSpeedDumpCoeff * dt + 1;
-            // int dt / f^2 = (1 - 1 / f) / kf
-            var angularSpeedDumpFunctionIntegral = (1 - 1 / angularSpeedDumpFunction) / angularSpeedDumpCoeff;
-            // W = W_0 / f^2
+            // Fw = int dt / fw^2 = (1 - 1 / fw) / kw
+            // kw = 0 => Fw = t
+            var angularSpeedDumpFunctionIntegral = angularSpeedDumpCoeff == 0 ? dt : (1 - 1 / angularSpeedDumpFunction) / angularSpeedDumpCoeff;
+            // W = W_0 / fw^2
             AngularSpeed = relativeBallState.AngularSpeed / (angularSpeedDumpFunction * angularSpeedDumpFunction);
+            // A = A_0 + int W dt = A_0 + W_0 Fw
+            MarkPoint = relativeBallState.MarkPoint.RotateByAngle3D(relativeBallState.AngularSpeed * angularSpeedDumpFunctionIntegral).Normal * Constants.BallRadius;
 
             // V_h' = L V_h x W_v - D |V_h| V_h
-            // kg = D |V_h0|
+            // kh = D |V_h0|
             var horizontalSpeedDumpCoeff = Constants.BallDumpCoeff * speedProjection.Horizontal.Length;
-            // g = kg t + 1
+            // fh = kh t + 1
             var horizontalSpeedDumpFunction = horizontalSpeedDumpCoeff * dt + 1;
-            // int g dt = kg t^2/2 + t
+            // int fh dt = kh t^2/2 + t
             var horizontalSpeedDumpFunctionIntegral = horizontalSpeedDumpCoeff * dt * dt / 2 + dt;
-            // |V_h| = |V_h0| / g
-            // V_h = rotate(V_h0 / g, L W_v0 int dt / f^2)
-            var horizontalSpeed = (speedProjection.Horizontal / horizontalSpeedDumpFunction).RotateByAngle3D(Constants.BallLiftCoeff * angularSpeedDumpFunctionIntegral * angularSpeedProjection.Vertical);
-            Speed.X = horizontalSpeed.X;
-            Speed.Z = horizontalSpeed.Z;
+            // |V_h| = |V_h0| / fh
+            // A_h = L W_v0 Fw
+            var horizontalRotateAngle = Constants.BallLiftCoeff* angularSpeedDumpFunctionIntegral *angularSpeedProjection.Vertical;
+            // V_h = rotate(V_h0 / fh, A_h)
+            var horizontalSpeed = (speedProjection.Horizontal / horizontalSpeedDumpFunction).RotateByAngle3D(horizontalRotateAngle);
 
-            // V_v' = L V_h0 x W_h / g - D |V_h| V_v + G
-            // V_v = (V_v0 + L V_h0 x W_h0 (int dt / f^2) + G (int g dt)) / g
-            var verticalSpeed = (speedProjection.Vertical + Constants.BallLiftCoeff * angularSpeedDumpFunctionIntegral * DoublePoint3D.VectorMult(speedProjection.Horizontal, angularSpeedProjection.Horizontal) + GravityForce * horizontalSpeedDumpFunctionIntegral) / horizontalSpeedDumpFunction;
-            Speed.Y = verticalSpeed.Y;
+            // V_v' = L V_h0 x W_h / fh - D |V_h| V_v + G
+            // L V_h0 x W_h0
+            var verticalLiftForce = Constants.BallLiftCoeff * DoublePoint3D.VectorMult(speedProjection.Horizontal, angularSpeedProjection.Horizontal);
+            // V_v = (V_v0 + L V_h0 x W_h0 (int dt / fw^2) + G (int fh dt)) / fh
+            var verticalSpeed = (speedProjection.Vertical + angularSpeedDumpFunctionIntegral * verticalLiftForce + GravityForce * horizontalSpeedDumpFunctionIntegral) / horizontalSpeedDumpFunction;
+
+            // lw = int dt / fw = log fw / kw
+            var angularSpeedDumpInverseIntegral = angularSpeedDumpCoeff == 0 ? dt : Math.Log(angularSpeedDumpFunction) / angularSpeedDumpCoeff;
+            // lh = int dt / fh = log fh / kh
+            var horizontalSpeedDumpInverseIntegral = horizontalSpeedDumpCoeff == 0 ? dt : Math.Log(horizontalSpeedDumpFunction) / horizontalSpeedDumpCoeff;
+            // P_v = P_v0 + int V_v dt
+            DoublePoint3D verticalPosition = positionProjection.Vertical + horizontalSpeedDumpInverseIntegral * speedProjection.Vertical;
+            if (horizontalSpeedDumpCoeff == 0)
+            {
+                // P_v = P_v0 + V_v0 t + G t^2 / 2
+                verticalPosition += GravityForce * (dt * dt / 2);
+            }
+            else
+            {
+                // P_v = P_v0 + lh V_v0 + L V_h0 x W_h0 (lw - lh) / (kh - kw) + G (fh^2 - 1 - 2 kh lh) / 4kh^2
+                var verticalLiftIntegral = (angularSpeedDumpInverseIntegral - horizontalSpeedDumpInverseIntegral) / (horizontalSpeedDumpCoeff - angularSpeedDumpCoeff);
+                var gravityIntegral = (horizontalSpeedDumpFunction * horizontalSpeedDumpFunction - 1 - 2 * horizontalSpeedDumpCoeff * horizontalSpeedDumpInverseIntegral) / (4 * horizontalSpeedDumpCoeff * horizontalSpeedDumpCoeff);
+                verticalPosition += verticalLiftIntegral * verticalLiftForce + gravityIntegral * GravityForce;
+            }
+
+            // int V_h dt
+            DoublePoint3D horizontalSpeedIntegral;
+            if (horizontalSpeedDumpCoeff == 0)
+            {
+                // V_h = 0
+                horizontalSpeedIntegral = DoublePoint3D.Empty;
+            }
+            else
+            {
+                // R_h = int (e^iA_h / fh) dt
+                Complex horizontalLiftIntegral;
+                if (angularSpeedDumpCoeff == 0)
+                {
+                    // R_h = lh
+                    horizontalLiftIntegral = horizontalSpeedDumpInverseIntegral;
+                }
+                else
+                {
+                    // I_0 = L W_v0
+                    var I0 = Constants.BallLiftCoeff * angularSpeedProjection.Vertical.Y;
+                    // I_wh = I_0 / (kw - kh)
+                    var Iwh = I0 / (angularSpeedDumpCoeff - horizontalSpeedDumpCoeff);
+                    // I_w = I_0 / kw
+                    var Iw = I0 / angularSpeedDumpCoeff;
+                    // x(j, f) = e^ij * (Ei(-ijf) - Ei(-ij))
+                    // R_h = (x(I_wh, fh / fw) - x(I_w, 1 / fw)) / kh
+                    horizontalLiftIntegral = (_horizontalLiftIntegral(Iwh, horizontalSpeedDumpFunction / angularSpeedDumpFunction) - _horizontalLiftIntegral(Iw, 1 / angularSpeedDumpFunction)) / horizontalSpeedDumpCoeff;
+                }
+                // int V_h dt = rotate(V_h0 |R_h|, arg R_h)
+                horizontalSpeedIntegral = (speedProjection.Horizontal * horizontalLiftIntegral.Length).RotateByAngle3D(DoublePoint3D.YAxis * horizontalLiftIntegral.Arg);
+            }
+            // P_h = P_h0 + int V_h dt
+            var horizontalPosition = positionProjection.Horizontal + horizontalSpeedIntegral;
+
+            Speed = horizontalSpeed + verticalSpeed;
+            Position = horizontalPosition + verticalPosition;
+        }
+
+        // x(j, f) = e^j * (Ei(-jf) - Ei(-j))
+        private Complex _horizontalLiftIntegral(double j, double x)
+        {
+            return Complex.Exp(Complex.I * j) * (Complex.ExpIntOfImaginaryArg(-j * x) - Complex.ExpIntOfImaginaryArg(-j));
         }
 
         public struct ProjectionToSurface

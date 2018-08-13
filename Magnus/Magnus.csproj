@@ -48,6 +48,7 @@
     <Compile Include="Aim.cs" />
     <Compile Include="ASurface.cs" />
     <Compile Include="Ball.cs" />
+    <Compile Include="Complex.cs" />
     <Compile Include="Constants.cs" />
     <Compile Include="DoublePoint3D.cs" />
     <Compile Include="GameStateExtension.cs" />
