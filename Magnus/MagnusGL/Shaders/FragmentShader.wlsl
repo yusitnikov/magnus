@@ -1,0 +1,55 @@
+﻿#version 330 core
+
+in vec3 p_Position;
+in vec3 p_Normal;
+in vec4 p_Color;
+
+out vec4 color;
+
+uniform vec3 ballPosition;
+uniform vec3 ballVector;
+uniform vec3 cameraPosition;
+uniform vec3 lightPosition;
+uniform float enableLight;
+
+vec2 calcLight(vec3 lightPos)
+{
+	vec3 lightDiff = p_Position - lightPos;
+	vec3 lightVector = normalize(lightDiff);
+	vec3 cameraDiff = p_Position - cameraPosition;
+	vec3 cameraVector = normalize(cameraDiff);
+	float distance = length(lightDiff);
+	vec3 reflection = reflect(lightVector, p_Normal);
+	float cosTheta = clamp(-dot(p_Normal, lightVector), 0, 1);
+	float cosAlpha = clamp(-dot(reflection, cameraVector), 0, 1);
+	if (cosTheta == 0)
+	{
+		cosAlpha = 0;
+	}
+	return vec2(cosTheta * 1000000 / (distance * distance), pow(cosAlpha, 5));
+}
+
+void main()
+{
+    color = p_Color;
+
+	if (p_Color == vec4(1, 1, 1, 1) && abs(dot(normalize(p_Position - ballPosition), ballVector)) < 0.5)
+	{
+		// ball texture
+		color = vec4(1, 0.5, 0, 1);
+	}
+
+	if (p_Color.w == 1)
+	{
+		float ambient = 0.7;
+		vec2 light = calcLight(lightPosition);
+		float lightCoeff = clamp(light.x, 0, 1);
+		float lightReflection = clamp(light.y, 0, 1) * 0.2;
+		color.xyz *= ambient + enableLight * (1 - ambient) * (lightCoeff + vec3(lightReflection, lightReflection, lightReflection));
+	}
+	else if (enableLight == 1)
+	{
+		// don't show the net twice
+		color.w = 0;
+	}
+}

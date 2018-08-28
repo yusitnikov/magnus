@@ -1,4 +1,6 @@
 ﻿using Magnus.Strategies;
+using OpenTK;
+using OpenTK.Graphics;
 using System;
 using System.Collections.Generic;
 using System.Windows.Forms;
@@ -25,55 +27,44 @@ namespace Magnus
         {
             new StrategyKeys(new TopSpinner(), Keys.T, Keys.Y),
             new StrategyKeys(new Blocker(), Keys.R, Keys.U),
+            new StrategyKeys(new SuperBlocker(), Keys.F, Keys.J),
             new StrategyKeys(new Strategy(), Keys.E, Keys.I),
             new StrategyKeys(new Passive(), Keys.W, Keys.O),
             new StrategyKeys(new BackSpinner(), Keys.Q, Keys.P),
         };
 
-        private int second = 0;
-        private int fps = 0;
-        private int frames = 0;
-
+        private GLControl glCanvas;
         private World world;
+        private WorldDrawer drawer;
 
         public WorldForm()
         {
             InitializeComponent();
+
+            SuspendLayout();
+            var mode = GraphicsMode.Default;
+            glCanvas = new GLControl(new GraphicsMode(mode.ColorFormat, mode.Depth, 8, mode.Samples, mode.AccumulatorFormat, mode.Buffers, mode.Stereo))
+            {
+                BackColor = System.Drawing.Color.Black,
+                Dock = DockStyle.Fill,
+                Location = new System.Drawing.Point(0, 0),
+                Name = "glCanvas",
+                Size = new System.Drawing.Size(763, 424),
+                TabIndex = 0,
+                VSync = false
+            };
+            glCanvas.Load += glCanvas_Load;
+            glCanvas.Paint += glCanvas_Paint;
+            glCanvas.KeyDown += WorldForm_KeyDown;
+            Controls.Add(glCanvas);
+            ResumeLayout(false);
 
             world = new World();
         }
 
         private void timer_Tick(object sender, EventArgs e)
         {
-            Invalidate();
-        }
-
-        private void WorldForm_Paint(object sender, PaintEventArgs e)
-        {
-            var curSecond = DateTime.Now.Second;
-            if (second != curSecond)
-            {
-                fps = frames;
-                frames = 0;
-            }
-            second = curSecond;
-            ++frames;
-
-            world.DoStep();
-            var graphics = e.Graphics;
-            int screenWidth = ClientRectangle.Width, screenHeight = ClientRectangle.Height;
-            graphics.Clear(BackColor);
-            var drawer = new WorldDrawer(graphics, Font, screenWidth, screenHeight);
-            drawer.DrawWorld(world.State);
-            drawer.DrawString("FPS: " + fps, 0, 0);
-            drawer.DrawString("Speed: " + world.TimeCoeff + " / " + World.DefaultTimeCoeff, 1, 0);
-            Player leftPlayer = world.State.Players[Constants.LeftPlayerIndex], rightPlayer = world.State.Players[Constants.RightPlayerIndex];
-            drawer.DrawString(leftPlayer.Strategy + " " + leftPlayer.Score + " - " + rightPlayer.Score + " " + rightPlayer.Strategy, 0, 0.5f);
-            for (var strategyIndex = 0; strategyIndex < strategies.Count; strategyIndex++)
-            {
-                var strategyInfo = strategies[strategyIndex];
-                drawer.DrawString("[" + strategyInfo.Keys[Constants.LeftPlayerIndex] + "] " + strategyInfo.Strategy + " [" + strategyInfo.Keys[Constants.RightPlayerIndex] + "]", strategyIndex + 2, 0.5f);
-            }
+            glCanvas.Invalidate();
         }
 
         private void WorldForm_KeyDown(object sender, KeyEventArgs e)
@@ -110,6 +101,51 @@ namespace Magnus
                     }
                 }
             }
+        }
+
+        private bool canDraw = false;
+
+        private void glCanvas_Load(object sender, EventArgs e)
+        {
+            drawer = new WorldDrawer(Font);
+
+            canDraw = true;
+        }
+
+        private void glCanvas_Paint(object sender, PaintEventArgs e)
+        {
+            if (!canDraw)
+            {
+                return;
+            }
+
+            var stats = Profiler.Instance.AverageStats;
+
+            Profiler.Instance.LogFrameStart();
+
+            drawer.Start(glCanvas.Width, glCanvas.Height);
+
+            Profiler.Instance.LogEvent("drawer.Start");
+
+            world.DoStep();
+            Profiler.Instance.LogEvent("world.DoStep");
+            drawer.DrawWorld(world.State);
+            drawer.DrawString("FPS: " + Profiler.Instance.FPS, 0, 0);
+            drawer.DrawString("Speed: " + world.TimeCoeff + " / " + World.DefaultTimeCoeff, 1, 0);
+            Player leftPlayer = world.State.Players[Constants.LeftPlayerIndex], rightPlayer = world.State.Players[Constants.RightPlayerIndex];
+            drawer.DrawString(leftPlayer.Strategy + " " + leftPlayer.Score + " - " + rightPlayer.Score + " " + rightPlayer.Strategy, 0, 0.5f);
+            var text = "";
+            foreach (var pair in stats)
+            {
+                text += pair.Key + ": " + pair.Value.ToString("0.02") + "\r\n";
+            }
+            //drawer.DrawString(text, 3, 0);
+            Profiler.Instance.LogEvent("drawer.DrawString");
+
+            drawer.End();
+
+            glCanvas.SwapBuffers();
+            Profiler.Instance.LogEvent("glCanvas.SwapBuffers");
         }
     }
 }

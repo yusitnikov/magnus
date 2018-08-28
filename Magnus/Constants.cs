@@ -8,7 +8,7 @@ namespace Magnus
         public const double LengthUnit = 1, TimeUnit = 1, SpeedUnit = LengthUnit / TimeUnit, ForceUnit = LengthUnit / TimeUnit / TimeUnit;
 
         // table/net/ball/bat size constants
-        public const double TableLength = 274 * LengthUnit, HalfTableLength = TableLength / 2, TableWidth = 152.5 * LengthUnit, HalfTableWidth = TableWidth / 2, TableHeight = 76 * LengthUnit, NetHeight = 15 * LengthUnit, NetWidth = TableWidth + NetHeight, HalfNetWidth = NetWidth / 2, BallRadius = 2 * LengthUnit, BatWidth = NetHeight, BatRadius = BatWidth / 2, BatLength = BatWidth * 1.5, BatBiggerRadius = BatLength / 2;
+        public const double TableLength = 274 * LengthUnit, HalfTableLength = TableLength / 2, TableWidth = 152.5 * LengthUnit, HalfTableWidth = TableWidth / 2, TableHeight = 76 * LengthUnit, TableThickness = LengthUnit, NetHeight = 15 * LengthUnit, NetWidth = TableWidth + NetHeight, HalfNetWidth = NetWidth / 2, BallRadius = 2 * LengthUnit, BatWidth = NetHeight, BatRadius = BatWidth / 2, BatLength = BatWidth * 1.2, BatBiggerRadius = BatLength / 2, BatThickness = LengthUnit;
 
         // simulation frame time
         public const double SimulationFrameTime = 0.001 * TimeUnit, SimplifiedSimulationFrameTime = 0.01 * TimeUnit;
@@ -22,7 +22,7 @@ namespace Magnus
         public const double MinTimeToMoveBeforeHit = 0.2 * TimeUnit, MinDistanceToMoveBeforeHit = 40 * LengthUnit;
 
         // hit coefficients
-        public const double BallHitVerticalCoeff = 0.58, BallHitHorizontalCoeff = 0.8, TableHitVerticalCoeff = 0.9, TableHitHorizontalCoeff = 0.2;
+        public const double BallHitVerticalCoeff = 0.58, BallHitHorizontalCoeff = 0.6, TableHitVerticalCoeff = 0.9, TableHitHorizontalCoeff = 0.2;
 
         // player sides
         public const int LeftPlayerIndex = 0, RightPlayerIndex = 1;

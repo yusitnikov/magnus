@@ -49,7 +49,6 @@
             this.StartPosition = System.Windows.Forms.FormStartPosition.WindowsDefaultBounds;
             this.Text = "Magnus";
             this.WindowState = System.Windows.Forms.FormWindowState.Maximized;
-            this.Paint += new System.Windows.Forms.PaintEventHandler(this.WorldForm_Paint);
             this.KeyDown += new System.Windows.Forms.KeyEventHandler(this.WorldForm_KeyDown);
             this.ResumeLayout(false);
 

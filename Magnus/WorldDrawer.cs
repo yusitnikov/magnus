@@ -1,266 +1,315 @@
-﻿using System;
+﻿using Magnus.MagnusGL;
+using OpenTK;
+using OpenTK.Graphics.OpenGL;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
-using System.Linq;
+using System.IO;
+using System.Windows.Forms;
+using BitmapData = System.Drawing.Imaging.BitmapData;
+using ImageLockMode = System.Drawing.Imaging.ImageLockMode;
+using SystemPixelFormat = System.Drawing.Imaging.PixelFormat;
 
 namespace Magnus
 {
     class WorldDrawer
     {
-        private Graphics graphics;
         private Font font;
-        private int screenWidth, screenHeight;
+        private int width = 1, height = 1;
         private double screenCoeff;
+        private int programId;
+        private int textTexture;
+        private int mvpId;
+        private int lightPositionId;
+        private int cameraPositionId;
+        private int ballPositionId, ballVectorId;
+        private int enableLightId;
+        private int shadowLengthId;
+        private GlArrayBuffer coords, normals, colors;
+        private Bitmap textTextureBmp = null;
+        private Graphics textTextureGraphics = null;
+        private List<GlMesh> meshes = new List<GlMesh>();
 
-        private List<DoublePoint3D> tableKeyPoints = new List<DoublePoint3D>();
-
-        public WorldDrawer(Graphics graphics, Font font, int screenWidth, int screenHeight)
+        public WorldDrawer(Font font)
         {
-            this.graphics = graphics;
             this.font = font;
-            this.screenWidth = screenWidth;
-            this.screenHeight = screenHeight;
-            screenCoeff = Constants.ScreenZoom * screenWidth / Constants.TableLength;
 
-            initTableKeyPoints();
+            screenCoeff = Constants.ScreenZoom * 2 / Constants.TableLength;
+
+            programId = GL.CreateProgram();
+            var vertexShaderId = loadShader(ShaderType.VertexShader, "VertexShader");
+            var fragmentShaderId = loadShader(ShaderType.FragmentShader, "FragmentShader");
+            GL.LinkProgram(programId);
+            GL.GetProgram(programId, GetProgramParameterName.LinkStatus, out int status);
+            if (status == 0)
+            {
+                throw new Exception("Failed to link program: " + GL.GetProgramInfoLog(programId));
+            }
+            GL.DetachShader(programId, vertexShaderId);
+            GL.DetachShader(programId, fragmentShaderId);
+            GL.DeleteShader(vertexShaderId);
+            GL.DeleteShader(fragmentShaderId);
+            GL.UseProgram(programId);
+
+            mvpId = GL.GetUniformLocation(programId, "mvp");
+            cameraPositionId = GL.GetUniformLocation(programId, "cameraPosition");
+            lightPositionId = GL.GetUniformLocation(programId, "lightPosition");
+            GL.Uniform3(lightPositionId, new Vector3((float)Constants.TableLength, (float)Constants.TableLength, (float)Constants.TableWidth) * 2);
+            ballPositionId = GL.GetUniformLocation(programId, "ballPosition");
+            ballVectorId = GL.GetUniformLocation(programId, "ballVector");
+            enableLightId = GL.GetUniformLocation(programId, "enableLight");
+            shadowLengthId = GL.GetUniformLocation(programId, "shadowLength");
+
+            coords = new GlArrayBuffer(programId, "a_Position", 3);
+            normals = new GlArrayBuffer(programId, "a_Normal", 3);
+            colors = new GlArrayBuffer(programId, "a_Color", 4);
+
+            GL.ClearColor(Color.CornflowerBlue);
+            GL.BlendFunc(0, BlendingFactorSrc.SrcAlpha, BlendingFactorDest.OneMinusSrcAlpha);
+            GL.Enable(EnableCap.Blend);
+
+            textTexture = GL.GenTexture();
+            GL.BindTexture(TextureTarget.Texture2D, textTexture);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Clamp);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Clamp);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
         }
 
-        private void initTableKeyPoints()
+        private int loadShader(ShaderType type, string fileName)
         {
-            addTableKeyCube(-Constants.HalfTableLength, 0, -Constants.HalfTableWidth, Constants.HalfTableLength, -1, Constants.HalfTableWidth);
+            var shaderId = GL.CreateShader(type);
+            GL.ShaderSource(shaderId, File.ReadAllText(@"MagnusGL\Shaders\" + fileName + ".wlsl"));
+            GL.CompileShader(shaderId);
+            GL.GetShader(shaderId, ShaderParameter.CompileStatus, out int status);
+            if (status == 0)
+            {
+                throw new Exception("Failed to compile " + fileName + " shader: " + GL.GetShaderInfoLog(shaderId));
+            }
+            GL.AttachShader(programId, shaderId);
+            return shaderId;
+        }
+
+        public void Start(int width, int height)
+        {
+            width = Math.Max(width, 1);
+            height = Math.Max(height, 1);
+
+            if (this.width != width || this.height != height)
+            {
+                this.width = width;
+                this.height = height;
+
+                if (textTextureBmp != null)
+                {
+                    textTextureBmp.Dispose();
+                    textTextureGraphics.Dispose();
+                }
+
+                textTextureBmp = new Bitmap(width, height);
+                textTextureGraphics = Graphics.FromImage(textTextureBmp);
+            }
+
+            textTextureGraphics.Clear(Color.Transparent);
+
+            GL.UseProgram(programId);
+            var projection = Matrix4.CreatePerspectiveFieldOfView(MathHelper.PiOver4 / 2, (float)width / height, 0.01f, 4);
+            var mouse = OpenTK.Input.Mouse.GetCursorState();
+            var camera = Matrix4.CreateRotationY((float)Math.PI * mouse.X / 360)
+                       * Matrix4.CreateRotationX((float)Math.PI / 2 * Math.Max(0, Math.Min(1, ((float)mouse.Y / Screen.PrimaryScreen.Bounds.Height - 0.5f) * 5)))
+                       * Matrix4.CreateTranslation(0, 0, -2);
+            var mv = Matrix4.CreateScale((float)screenCoeff) * camera;
+            var mvp = mv * projection;
+            GL.UniformMatrix4(mvpId, false, ref mvp);
+            var cameraPosition = new Vector4(0, 0, 0, 1) * Matrix4.Invert(mv);
+            GL.Uniform3(cameraPositionId, cameraPosition.Xyz);
+
+            GL.Viewport(0, 0, width, height);
+        }
+
+        public void End()
+        {
+            GL.ClearStencil(1);
+            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit | ClearBufferMask.StencilBufferBit);
+            GL.Disable(EnableCap.StencilTest);
+            GL.Enable(EnableCap.DepthTest);
+            GL.DepthFunc(DepthFunction.Lequal);
+            GL.Enable(EnableCap.CullFace);
+            GL.CullFace(CullFaceMode.Back);
+            GL.DepthMask(true);
+            GL.DrawBuffer(DrawBufferMode.Back);
+            renderMeshes(true, false);
+            Profiler.Instance.LogEvent("drawer.End: depth");
+
+            GL.Enable(EnableCap.StencilTest);
+            GL.DepthMask(false);
+            GL.Enable(EnableCap.DepthClamp);
+            GL.Disable(EnableCap.CullFace);
+            GL.Disable(EnableCap.Blend);
+            GL.StencilFunc(StencilFunction.Always, 0, 0xFF);
+            GL.StencilOpSeparate(StencilFace.Back, StencilOp.Keep, StencilOp.Keep, StencilOp.IncrWrap);
+            GL.StencilOpSeparate(StencilFace.Front, StencilOp.Keep, StencilOp.Keep, StencilOp.DecrWrap);
+            GL.DrawBuffer(DrawBufferMode.None);
+            renderMeshes(false, false);
+            GL.Disable(EnableCap.DepthClamp);
+            GL.Enable(EnableCap.CullFace);
+            GL.CullFace(CullFaceMode.Back);
+            GL.Enable(EnableCap.Blend);
+
+            GL.DrawBuffer(DrawBufferMode.Back);
+            GL.Enable(EnableCap.DepthTest);
+            GL.DepthMask(true);
+            GL.StencilFunc(StencilFunction.Equal, 1, 0xFF);
+            GL.StencilOpSeparate(StencilFace.Back, StencilOp.Keep, StencilOp.Keep, StencilOp.Keep);
+            renderMeshes(true, true);
+            Profiler.Instance.LogEvent("drawer.End: final");
+
+            GL.Disable(EnableCap.StencilTest);
+
+            renderTexts();
+            Profiler.Instance.LogEvent("drawer.End: texts");
+
+            GL.Flush();
+            Profiler.Instance.LogEvent("drawer.End: flush");
+        }
+
+        private void renderMeshes(bool real, bool light)
+        {
+            coords.Clear();
+            normals.Clear();
+            colors.Clear();
+            if (!real) Profiler.Instance.LogEvent("drawer.End: shadow: clear");
+
+            foreach (var mesh in meshes)
+            {
+                foreach (var triangle in real ? mesh.Triangles : mesh.ShadowTriangles)
+                {
+                    coords.Write(triangle.V0.Vertex.Position);
+                    normals.Write(triangle.V0.Normal);
+                    colors.Write(triangle.Color);
+                    coords.Write(triangle.V1.Vertex.Position);
+                    normals.Write(triangle.V1.Normal);
+                    colors.Write(triangle.Color);
+                    coords.Write(triangle.V2.Vertex.Position);
+                    normals.Write(triangle.V2.Normal);
+                    colors.Write(triangle.Color);
+                }
+            }
+            if (!real) Profiler.Instance.LogEvent("drawer.End: shadow: write");
+
+            coords.SetData();
+            normals.SetData();
+            colors.SetData();
+            coords.Apply();
+            normals.Apply();
+            colors.Apply();
+            if (!real) Profiler.Instance.LogEvent("drawer.End: shadow: send");
+
+            GL.Uniform1(shadowLengthId, real ? 0f : 1000f);
+            GL.Uniform1(enableLightId, light ? 1f : 0f);
+            GL.DrawArrays(PrimitiveType.Triangles, 0, coords.Length);
+            if (!real) Profiler.Instance.LogEvent("drawer.End: shadow: draw");
+        }
+
+        private void renderTexts()
+        {
+            textTextureGraphics.Flush();
+
+            GL.UseProgram(0);
+
+            GL.Enable(EnableCap.Texture2D);
+
+            GL.BindTexture(TextureTarget.Texture2D, textTexture);
+            BitmapData bd = new BitmapData();
+            textTextureBmp.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.ReadOnly, SystemPixelFormat.Format32bppArgb, bd);
+            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, width, height, 0, PixelFormat.Bgra, PixelType.UnsignedByte, bd.Scan0);
+            textTextureBmp.UnlockBits(bd);
+
+            GL.Color4(Color.White);
+            GL.Begin(PrimitiveType.Polygon);
+
+            GL.TexCoord2(0, 1);
+            GL.Vertex2(-1, -1);
+
+            GL.TexCoord2(1, 1);
+            GL.Vertex2(1, -1);
+
+            GL.TexCoord2(1, 0);
+            GL.Vertex2(1, 1);
+
+            GL.TexCoord2(0, 0);
+            GL.Vertex2(-1, 1);
+
+            GL.End();
+
+            GL.Disable(EnableCap.Texture2D);
+        }
+
+        private void drawCube(Color color, double x1, double y1, double z1, double x2, double y2, double z2, bool withShadow = true)
+        {
+            meshes.Add(new GlCube(color, x1, y1, z1, x2, y2, z2, withShadow));
+        }
+
+        private void drawCircle(Color color, DoublePoint3D center, double radius)
+        {
+            meshes.Add(new GlBall(color, center, radius));
+        }
+
+        private void drawPlane()
+        {
+            meshes.Add(new GlPlane(Color.Gray, -Constants.TableHeight, 10000));
+        }
+
+        private void drawTable()
+        {
+            var tableColor = Color.Green;
+            drawCube(tableColor, -Constants.HalfTableLength, 0, -Constants.HalfTableWidth, Constants.HalfTableLength, -Constants.TableThickness, Constants.HalfTableWidth);
             for (int xSign = -1; xSign <= 1; xSign += 2)
             {
                 for (int zSign = -1; zSign <= 1; zSign += 2)
                 {
                     var x = zSign * (Constants.HalfTableLength - 10);
                     var z = xSign * (Constants.HalfTableWidth - 10);
-                    addTableKeyCube(x - 3, 0, z - 3, x + 3, -Constants.TableHeight, z + 3);
+                    drawCube(tableColor, x - 3, -Constants.TableThickness, z - 3, x + 3, -Constants.TableHeight, z + 3);
                 }
             }
-            tableKeyPoints.AddRange(new DoublePoint3D[]
-            {
-                new DoublePoint3D(0, Constants.NetHeight, -Constants.HalfNetWidth),
-                new DoublePoint3D(0, Constants.NetHeight, Constants.HalfNetWidth),
-                new DoublePoint3D(0, 0, Constants.HalfNetWidth),
-                new DoublePoint3D(0, 0, -Constants.HalfNetWidth)
-            });
+            drawCube(Color.FromArgb(254, 254, 254), -Constants.HalfTableLength, 0.5, -0.5, Constants.HalfTableLength, 0, 0.5, false);
+            drawCube(Color.FromArgb(128, Color.Black), -0.5, Constants.NetHeight, -Constants.HalfNetWidth, 0.5, 0, Constants.HalfNetWidth);
         }
 
-        private void addTableKeyCube(double x1, double y1, double z1, double x2, double y2, double z2)
+        private void drawPlayer(Player player)
         {
-            tableKeyPoints.AddRange(new DoublePoint3D[]
-            {
-                new DoublePoint3D(x1, y1, z1),
-                new DoublePoint3D(x1, y1, z2),
-                new DoublePoint3D(x2, y1, z2),
-                new DoublePoint3D(x2, y1, z1),
-                new DoublePoint3D(x1, y2, z1),
-                new DoublePoint3D(x1, y2, z2),
-                new DoublePoint3D(x2, y2, z2),
-                new DoublePoint3D(x2, y2, z1)
-            });
+            meshes.Add(new GlPlayerBody(player));
+            meshes.Add(new GlPlayerHandle(player));
         }
 
-        private PointF getPointProjection(DoublePoint3D point)
+        private Vector3 toV3(DoublePoint3D v)
         {
-            return new PointF(
-                (float)(screenWidth / 2 + screenCoeff * (point.X + point.Z * 0.3)),
-                (float)(screenHeight * 0.5 - screenCoeff * (point.Y + point.Z * 0.3))
-            );
+            return new Vector3((float)v.X, (float)v.Y, (float)v.Z);
         }
 
-        private float getDistanceProjection(double distance)
+        private void drawBall(Ball ball)
         {
-            return (float)(screenCoeff * distance);
-        }
-
-        private void drawLine(Pen pen, params DoublePoint3D[] points)
-        {
-            graphics.DrawLines(pen, points.Select(getPointProjection).ToArray());
-        }
-
-        private void drawPolygon(Pen borderColor, params DoublePoint3D[] points)
-        {
-            graphics.DrawPolygon(borderColor, points.Select(getPointProjection).ToArray());
-        }
-
-        private bool isSurfaceVisibleClockwise(params PointF[] projections)
-        {
-            PointF p1 = projections[0], p2 = projections[1], p3 = projections[2];
-            return (p2.X - p1.X) * (p3.Y - p1.Y) - (p2.Y - p1.Y) * (p3.X - p1.X) >= 0;
-        }
-
-        private bool isSurfaceVisibleClockwise(params DoublePoint3D[] points)
-        {
-            return isSurfaceVisibleClockwise(points.Select(getPointProjection).ToArray());
-        }
-
-        private void fillPolygon(Brush fillColor, Pen borderColor, params DoublePoint3D[] points)
-        {
-            fillPolygon(fillColor, borderColor, true, points);
-        }
-
-        private void fillPolygon(Brush fillColor, Pen borderColor, bool onlyClockwise, params DoublePoint3D[] points)
-        {
-            var projections = points.Select(getPointProjection).ToArray();
-            if (onlyClockwise && !isSurfaceVisibleClockwise(projections))
-            {
-                return;
-            }
-            graphics.FillPolygon(fillColor, projections);
-            graphics.DrawPolygon(borderColor, projections);
-        }
-
-        private void drawKeyPointsCube(Brush fillColor, Pen borderColor, int i)
-        {
-            fillPolygon(fillColor, borderColor, tableKeyPoints[i + 0], tableKeyPoints[i + 1], tableKeyPoints[i + 2], tableKeyPoints[i + 3]);
-            fillPolygon(fillColor, borderColor, tableKeyPoints[i + 0], tableKeyPoints[i + 4], tableKeyPoints[i + 5], tableKeyPoints[i + 1]);
-            fillPolygon(fillColor, borderColor, tableKeyPoints[i + 1], tableKeyPoints[i + 5], tableKeyPoints[i + 6], tableKeyPoints[i + 2]);
-            fillPolygon(fillColor, borderColor, tableKeyPoints[i + 2], tableKeyPoints[i + 6], tableKeyPoints[i + 7], tableKeyPoints[i + 3]);
-            fillPolygon(fillColor, borderColor, tableKeyPoints[i + 3], tableKeyPoints[i + 7], tableKeyPoints[i + 4], tableKeyPoints[i + 0]);
-        }
-
-        private void drawCircle(Brush fillColor, Pen borderColor, DoublePoint3D center, double radius)
-        {
-            var centerProjection = getPointProjection(center);
-            var radiusProjection = getDistanceProjection(radius);
-            var diameterProjection = 2 * radiusProjection + 1;
-            graphics.FillEllipse(fillColor, centerProjection.X - radiusProjection, centerProjection.Y - radiusProjection, diameterProjection, diameterProjection);
-            graphics.DrawEllipse(borderColor, centerProjection.X - radiusProjection, centerProjection.Y - radiusProjection, diameterProjection, diameterProjection);
-        }
-
-        private DoublePoint3D[] getCirclePoints(double radius)
-        {
-            const int pointsCount = 30;
-            var points = new DoublePoint3D[pointsCount + 1];
-            for (var i = 0; i <= pointsCount; i++)
-            {
-                points[i] = radius * DoublePoint3D.YAxis.RotateRoll(2 * Math.PI * i / pointsCount);
-            }
-            return points;
-        }
-
-        private DoublePoint3D[] getCirclePointsByNormal(DoublePoint3D center, DoublePoint3D normal, double radius)
-        {
-            var pitch = normal.Pitch + Math.PI / 2;
-            var yaw = normal.Yaw;
-            return getCirclePoints(radius).Select(point => center + point.RotatePitch(pitch).RotateYaw(yaw)).ToArray();
-        }
-
-        private void drawCircleByNormal(Brush fillColor, Pen borderColor, DoublePoint3D center, DoublePoint3D normal, double radius, bool onlyClockwise = false)
-        {
-            fillPolygon(fillColor, borderColor, onlyClockwise, getCirclePointsByNormal(center, normal, radius));
-        }
-
-        public void DrawTable()
-        {
-            var fillColor = Brushes.Green;
-            var borderColor = Pens.LightGreen;
-            var lineColor = new Pen(Color.White, 3);
-
-            var legs = new List<int>() { 8, 16, 24, 32 };
-            legs.Sort((i1, i2) => tableKeyPoints[i2].Z.CompareTo(tableKeyPoints[i1].Z));
-            foreach (var i in legs)
-            {
-                drawKeyPointsCube(fillColor, borderColor, i);
-            }
-
-            drawKeyPointsCube(fillColor, borderColor, 0);
-            drawLine(lineColor, new DoublePoint3D(0, 0, -Constants.HalfTableWidth), new DoublePoint3D(0, 0, Constants.HalfTableWidth));
-            drawLine(lineColor, new DoublePoint3D(-Constants.HalfTableLength, 0, 0), new DoublePoint3D(Constants.HalfTableLength, 0, 0));
-
-            fillPolygon(new SolidBrush(Color.FromArgb(128, 0, 0, 0)), Pens.Black, false, tableKeyPoints[40], tableKeyPoints[41], tableKeyPoints[42], tableKeyPoints[43]);
-            drawLine(lineColor, tableKeyPoints[40], tableKeyPoints[41]);
-        }
-
-        private double getPointShadowY(DoublePoint3D point)
-        {
-            return Math.Abs(point.X) < Constants.HalfTableLength && Math.Abs(point.Z) < Constants.HalfTableWidth ? 0 : -Constants.TableHeight;
-        }
-
-        private DoublePoint3D getPointShadowCoords(DoublePoint3D point, double shadowY)
-        {
-            return new DoublePoint3D(point.X, shadowY, point.Z);
-        }
-
-        private DoublePoint3D[] getBatPoints(Player player)
-        {
-            return getCirclePoints(1).Select(point => player.TranslatePointFromBatCoords(new DoublePoint3D(point.Y * Constants.BatRadius, 0, point.Z * Constants.BatBiggerRadius))).ToArray();
-        }
-
-        private DoublePoint3D[] getBatLinePoints(Player player)
-        {
-            return new DoublePoint3D[]
-            {
-                player.TranslatePointFromBatCoords(new DoublePoint3D(0, 0, Constants.BatBiggerRadius)),
-                player.TranslatePointFromBatCoords(new DoublePoint3D(0, 0, Constants.BatBiggerRadius * 1.5))
-            };
-        }
-
-        public void DrawPlayer(Player player)
-        {
-            var woodColor = player.NeedAim ? Color.DarkRed : Color.BurlyWood;
-            var borderColor = new Pen(woodColor, 3);
-            var batPoints = getBatPoints(player);
-            var batLinePoints = getBatLinePoints(player);
-
-            fillPolygon(Brushes.Black, borderColor, batPoints);
-            fillPolygon(Brushes.Red, borderColor, batPoints.Reverse().ToArray());
-            drawLine(new Pen(woodColor, getDistanceProjection(Constants.BallRadius)), batLinePoints);
-        }
-
-        public void DrawPlayerShadow(Player player)
-        {
-            var shadowColor = Color.FromArgb(128, 0, 0, 0);
-            var batPoints = getBatPoints(player);
-            var batLinePoints = getBatLinePoints(player);
-
-            var shadowY = getPointShadowY(player.Position);
-            fillPolygon(new SolidBrush(shadowColor), new Pen(shadowColor, 3), false, batPoints.Select(point => getPointShadowCoords(point, shadowY)).ToArray());
-            drawLine(new Pen(shadowColor, getDistanceProjection(Constants.BallRadius)), batLinePoints.Select(point => getPointShadowCoords(point, shadowY)).ToArray());
-        }
-
-        public void DrawBall(Ball ball)
-        {
-            drawCircle(Brushes.White, Pens.Black, ball.Position, Constants.BallRadius);
-            drawCircleByNormal(Brushes.Red, Pens.Transparent, ball.Position + ball.MarkPoint, ball.MarkPoint.Normal, Constants.BallRadius / 2, true);
-            drawCircleByNormal(Brushes.Red, Pens.Transparent, ball.Position - ball.MarkPoint, -ball.MarkPoint.Normal, Constants.BallRadius / 2, true);
-            drawCircle(Brushes.Transparent, Pens.Black, ball.Position, Constants.BallRadius);
-            var shadowY = getPointShadowY(ball.Position);
-            drawCircleByNormal(new SolidBrush(Color.FromArgb(128, 0, 0, 0)), Pens.Transparent, getPointShadowCoords(ball.Position, shadowY), DoublePoint3D.YAxis, Constants.BallRadius);
+            GL.Uniform3(ballPositionId, toV3(ball.Position));
+            GL.Uniform3(ballVectorId, toV3(ball.MarkPoint.Normal));
+            drawCircle(Color.White, ball.Position, Constants.BallRadius);
         }
 
         public void DrawWorld(State state)
         {
-            var ballIsOutOfTable = state.Ball.Position.Z > Constants.HalfNetWidth && state.Ball.Position.Y < 0;
-            if (ballIsOutOfTable)
-            {
-                DrawBall(state.Ball);
-            }
-            DrawTable();
+            meshes.Clear();
+            drawPlane();
             foreach (var player in state.Players)
             {
-                DrawPlayerShadow(player);
-                DrawPlayer(player);
+                drawPlayer(player);
             }
-            if (!ballIsOutOfTable)
-            {
-                DrawBall(state.Ball);
-            }
-            foreach (var player in state.Players)
-            {
-                var seeBatFrontSide = isSurfaceVisibleClockwise(getBatPoints(player));
-                var ballIsFromFrontSide = DoublePoint3D.ScalarMult(state.Ball.ProjectToSurface(player).Position.Vertical, player.Normal) >= 0;
-                if (ballIsFromFrontSide != seeBatFrontSide)
-                {
-                    DrawPlayer(player);
-                }
-            }
+            drawBall(state.Ball);
+            drawTable();
         }
 
         public void DrawString(string text, int line, float alignment)
         {
-            graphics.DrawString(text, font, Brushes.Black, (screenWidth - graphics.MeasureString(text, font).Width) * alignment, line * font.Height);
+            textTextureGraphics.DrawString(text, font, Brushes.Black, (width - textTextureGraphics.MeasureString(text, font).Width) * alignment, line * font.Height);
         }
     }
 }

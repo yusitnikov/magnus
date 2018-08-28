@@ -205,7 +205,7 @@ namespace Magnus
                     attackPitch = Strategy.GetServeAttackAngle();
                     velocityAttackPitch = Strategy.GetServeVelocityAttackAngle();
                     attackYaw = Misc.FromDegrees(Misc.Rnd(-40, 40));
-                    velocityAttackYaw = Misc.FromDegrees(Misc.Rnd(-70, 70));
+                    velocityAttackYaw = Math.Sign(Misc.Rnd(-1, 1)) * Misc.FromDegrees(Misc.Rnd(30, 70));
                 }
                 else
                 {
@@ -214,8 +214,8 @@ namespace Magnus
                     velocityAttackPitch = Strategy.GetVelocityAttackAngle();
                     velocityAttackPitch = Math.Max(velocityAttackPitch, attackPitch - Constants.MaxAttackAngleDifference);
                     velocityAttackPitch = Math.Min(velocityAttackPitch, attackPitch + Constants.MaxAttackAngleDifference);
-                    attackYaw = Misc.FromDegrees(Misc.Rnd(-30, 30));
-                    velocityAttackYaw = Misc.FromDegrees(Misc.Rnd(-30, 30));
+                    attackYaw = Misc.FromDegrees(Misc.Rnd(-50, 50));
+                    velocityAttackYaw = Misc.FromDegrees(Misc.Rnd(-60, 60));
                 }
                 //attackYaw = velocityAttackYaw = 0;
 

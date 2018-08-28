@@ -1,0 +1,25 @@
+﻿#version 330
+
+in vec3 a_Position;
+out vec3 p_Position;
+in vec3 a_Normal;
+out vec3 p_Normal;
+in vec4 a_Color;
+out vec4 p_Color;
+
+uniform mat4 mvp;
+uniform vec3 lightPosition;
+uniform float shadowLength;
+
+void main()
+{
+    gl_Position = mvp * vec4(a_Position, 1);
+	p_Position = a_Position;
+	p_Normal = a_Normal;
+	p_Color = a_Color;
+	vec3 lightDiff = a_Position.xyz - lightPosition;
+	if (shadowLength != 0 && dot(lightDiff, a_Normal) > 0)
+	{
+		gl_Position += mvp * vec4(normalize(lightDiff), 0) * shadowLength;
+	}
+}

@@ -3,6 +3,7 @@
     class Surface : ASurface
     {
         public static readonly Surface Horizontal = new Surface(DoublePoint3D.Empty, DoublePoint3D.Empty, DoublePoint3D.YAxis);
+        public static readonly Surface HorizontalReverted = new Surface(DoublePoint3D.Empty, DoublePoint3D.Empty, -DoublePoint3D.YAxis);
 
         public override DoublePoint3D Normal { get; set; }
 

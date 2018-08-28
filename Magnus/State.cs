@@ -17,7 +17,7 @@ namespace Magnus
         {
             Ball = new Ball()
             {
-                MarkPoint = new DoublePoint3D(Constants.BallRadius, 0, 0)
+                MarkPoint = DoublePoint3D.XAxis
             };
             Players = new Player[2];
             for (var playerIndex = 0; playerIndex <= 1; playerIndex++)
@@ -69,7 +69,7 @@ namespace Magnus
                 Ball.DoStepSimplified(relativeState.Ball, Time - relativeState.Time);
             }
 
-            events |= checkForHits();
+            events |= checkForHits(prevBallState);
 
             if (Ball.Side != prevBallState.Side)
             {
@@ -160,7 +160,7 @@ namespace Magnus
             }
         }
 
-        private Event checkForHits()
+        private Event checkForHits(Ball prevBallState)
         {
             Event events = 0;
 
@@ -177,9 +177,16 @@ namespace Magnus
 
             var tableEndX = Constants.HalfTableLength + Constants.BallRadius;
             var tableEndZ = Constants.HalfTableWidth + Constants.BallRadius;
-            if (Ball.Position.Y < Constants.BallRadius && Math.Abs(Ball.Position.X) < tableEndX && Math.Abs(Ball.Position.Z) < tableEndZ)
+            var verticalSpeedSign = Math.Sign(Ball.Speed.Y);
+            if (
+                verticalSpeedSign != 0 &&
+                Ball.Position.Y * verticalSpeedSign > -Constants.BallRadius &&
+                prevBallState.Position.Y * verticalSpeedSign <= -Constants.BallRadius &&
+                Math.Abs(Ball.Position.X) < tableEndX &&
+                Math.Abs(Ball.Position.Z) < tableEndZ
+            )
             {
-                if (Ball.Speed.Y < 0 && Ball.Position.Y - Constants.BallRadius > Math.Abs(Ball.Position.X) - tableEndX)
+                if (Ball.Speed.Y < 0)
                 {
                     events |= Event.TableHit;
 
@@ -218,8 +225,7 @@ namespace Magnus
                 {
                     events |= Event.FloorHit;
 
-                    Ball.Position.X = 2 * tableEndX * Ball.Side - Ball.Position.X;
-                    Ball.Speed.X = Math.Abs(Ball.Speed.X) * Ball.Side;
+                    Ball.ProcessHit(Surface.HorizontalReverted, Constants.TableHitHorizontalCoeff, Constants.TableHitVerticalCoeff);
 
                     endSet(GameState.IsOneOf(GameState.NotReadyToHit));
                 }

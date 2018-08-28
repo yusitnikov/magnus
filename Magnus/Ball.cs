@@ -37,7 +37,7 @@ namespace Magnus
             DoublePoint3D angularForce = -Constants.BallAngularDumpCoeff * AngularSpeed * Math.Sqrt(AngularSpeed.Length);
 
             Position += Speed * dt + force * (dt * dt / 2);
-            MarkPoint = MarkPoint.RotateByAngle3D(AngularSpeed * dt).Normal * Constants.BallRadius;
+            MarkPoint = MarkPoint.RotateByAngle3D(AngularSpeed * dt);
             Speed += force * dt;
             AngularSpeed += angularForce * dt;
         }
@@ -62,7 +62,7 @@ namespace Magnus
             // W = W_0 / fw^2
             AngularSpeed = relativeBallState.AngularSpeed / (angularSpeedDumpFunction * angularSpeedDumpFunction);
             // A = A_0 + int W dt = A_0 + W_0 Fw
-            MarkPoint = relativeBallState.MarkPoint.RotateByAngle3D(relativeBallState.AngularSpeed * angularSpeedDumpFunctionIntegral).Normal * Constants.BallRadius;
+            MarkPoint = relativeBallState.MarkPoint.RotateByAngle3D(relativeBallState.AngularSpeed * angularSpeedDumpFunctionIntegral);
 
             // V_h' = L V_h x W_v - D |V_h| V_h
             // kh = D |V_h0|
