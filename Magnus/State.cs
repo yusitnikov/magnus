@@ -106,12 +106,13 @@ namespace Magnus
                 }
 
                 var ballInBatSystem = Ball.ProjectToSurface(player);
-                if (ballInBatSystem.Position.Horizontal.Length < Constants.BatRadius + Constants.BallRadius && ballInBatSystem.Position.Vertical.Length <= Constants.BallRadius && DoublePoint3D.ScalarMult(ballInBatSystem.Speed.Vertical, player.Normal) <= 0)
+                if (ballInBatSystem.Position.Horizontal.Length < Constants.BatRadius + Constants.BallRadius && ballInBatSystem.Position.Vertical.Length <= Constants.BallRadius)
                 {
                     events |= Event.BatHit;
                     events |= player.Index == Constants.RightPlayerIndex ? Event.RightBatHit : Event.LeftBatHit;
 
-                    Ball.ProcessHit(player, Constants.BallHitHorizontalCoeff, Constants.BallHitVerticalCoeff);
+                    var batSide = DoublePoint3D.ScalarMult(ballInBatSystem.Speed.Vertical, player.Normal) <= 0 ? 1 : -1;
+                    Ball.ProcessHit(player, Constants.BallHitHorizontalCoeff, Constants.BallHitVerticalCoeff, batSide);
 
                     if (GameState != GameState.Failed)
                     {

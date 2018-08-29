@@ -167,9 +167,9 @@ namespace Magnus
             Speed = surface.Speed + projection.Speed.Full;
         }
 
-        public void ProcessHit(ASurface surface, double horizontalHitCoeff, double verticalHitCoeff)
+        public void ProcessHit(ASurface surface, double horizontalHitCoeff, double verticalHitCoeff, int side = 1)
         {
-            var surfaceNormal = surface.Normal;
+            var surfaceNormal = surface.Normal * side;
             var projection = ProjectToSurface(surface);
             projection.Position.Vertical = 2 * Constants.BallRadius * surfaceNormal - projection.Position.Vertical;
             projection.Speed.Vertical *= -verticalHitCoeff;

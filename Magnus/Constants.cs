@@ -14,7 +14,7 @@ namespace Magnus
         public const double SimulationFrameTime = 0.001 * TimeUnit, SimplifiedSimulationFrameTime = 0.01 * TimeUnit;
 
         // player strength constants
-        public const double MaxPlayerSpeed = 1500 * SpeedUnit, MaxPlayerForce = 8000 * ForceUnit;
+        public const double MaxPlayerSpeed = 1500 * SpeedUnit, MaxPlayerForce = 12000 * ForceUnit;
 
         // ball forces constants
         public const double BallDumpCoeff = 0.002 / LengthUnit, BallLiftCoeff = 0.007, GravityForce = 980 * ForceUnit;

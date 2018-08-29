@@ -223,6 +223,15 @@ namespace Magnus
                 player.AnglePitch = reverseBallSpeedPitch + attackPitch;
                 player.Position = attemptState.Ball.Position - Constants.BallRadius * Normal;
                 player.Speed = hitSpeed * DoublePoint3D.FromAngles(reverseBallSpeedPitch + velocityAttackPitch, reverseBallSpeedYaw + attackYaw + velocityAttackYaw);
+                if (player.Position.Z * player.Side > 0)
+                {
+                    player.AnglePitch += Math.PI;
+                }
+                else
+                {
+                    player.AngleYaw += Math.PI;
+                    player.AnglePitch = -player.AnglePitch;
+                }
 
                 var newAim = new Aim(player, this, attemptState.Time, initialTime);
                 if (newAim.HasTimeToReact)
