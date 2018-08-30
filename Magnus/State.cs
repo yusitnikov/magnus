@@ -13,20 +13,25 @@ namespace Magnus
         public int HitSide;
         public GameState GameState;
 
+        public double NextServeX;
+
         public State()
         {
             Ball = new Ball()
             {
                 MarkPoint = DoublePoint3D.XAxis
             };
+            UpdateNextServeX();
             Players = new Player[2];
             for (var playerIndex = 0; playerIndex <= 1; playerIndex++)
             {
                 Players[playerIndex] = new Player(playerIndex);
+                Players[playerIndex].ResetPosition(NextServeX + Constants.NetHeight, true);
             }
             Time = 0;
             HitSide = Misc.Rnd(0, 1) < 0.5 ? Constants.LeftPlayerIndex : Constants.RightPlayerIndex;
-            Reset(true, true);
+
+            Reset();
         }
 
         private State(State other, bool copyPlayers = true)
@@ -34,18 +39,19 @@ namespace Magnus
             CopyFrom(other, copyPlayers);
         }
 
-        public void Reset(bool resetPosition, bool resetAngle)
+        public void UpdateNextServeX()
+        {
+            NextServeX = Constants.HalfTableLength + Misc.Rnd(Constants.MinBallServeX, Constants.MaxBallServeX);
+        }
+
+        public void Reset()
         {
             GameState = GameState.Serving;
-            Ball.Position = new DoublePoint3D((Constants.HalfTableLength + Misc.Rnd(Constants.MinBallServeX, Constants.MaxBallServeX)) * Misc.GetPlayerSideByIndex(HitSide), Constants.NetHeight, 0);
+            Ball.Position = new DoublePoint3D(NextServeX * Misc.GetPlayerSideByIndex(HitSide), Constants.NetHeight, 0);
             Ball.Speed = new DoublePoint3D(0, Misc.Rnd(Constants.MinBallServeThrowSpeed, Constants.MaxBallServeThrowSpeed), 0);
             Ball.AngularSpeed = DoublePoint3D.Empty;
 
-            foreach (var player in Players)
-            {
-                player.Reset(Math.Abs(Ball.Position.X) + Constants.NetHeight, resetPosition, resetAngle);
-            }
-
+            UpdateNextServeX();
             Players[HitSide].RequestAim();
         }
 

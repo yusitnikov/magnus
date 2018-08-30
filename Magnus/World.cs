@@ -31,7 +31,7 @@ namespace Magnus
         {
             if (DateTime.Now > NextServeTime)
             {
-                State.Reset(false, false);
+                State.Reset();
                 NextServeTime = DateTime.MaxValue;
             }
 

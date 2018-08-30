@@ -55,19 +55,19 @@ namespace Magnus
             return Position + TranslateVectorFromBatCoords(point);
         }
 
-        public void Reset(double x, bool resetPosition, bool resetAngle)
+        public void ResetPosition(double x, bool resetAngle)
         {
-            if (resetPosition)
+            if (resetAngle)
             {
-                if (resetAngle)
-                {
-                    Normal = DefaultNormal;
-                }
-
-                Position = new DoublePoint3D(x * Side, Constants.BatWaitY, 0);
-                Speed = DoublePoint3D.Empty;
+                Normal = DefaultNormal;
             }
 
+            Position = new DoublePoint3D(x * Side, Constants.BatWaitY, 0);
+            Speed = DoublePoint3D.Empty;
+        }
+
+        public void ResetAim()
+        {
             NeedAim = false;
             Aim = null;
         }
@@ -96,21 +96,31 @@ namespace Magnus
             {
                 bool stillMoving = Aim.UpdatePlayerPosition(state, this);
 
-                if (!stillMoving)
+                if (!stillMoving || state.GameState == GameState.Failed && Math.Abs(Aim.AimX) < getWaitX(state, false))
                 {
-                    MoveToInitialPosition(state.Time);
+                    MoveToInitialPosition(state, false);
                 }
             }
 
             Speed = (Position - prevPosition) / dt;
         }
 
-        public void MoveToInitialPosition(double currentTime)
+        private double getWaitX(State state, bool prepareToServe)
+        {
+            if (state.GameState == GameState.Failed)
+            {
+                prepareToServe = true;
+            }
+            return prepareToServe ? state.NextServeX + Constants.BatLength : Constants.BatWaitX;
+        }
+
+        public void MoveToInitialPosition(State state, bool prepareToServe)
         {
             var readyPosition = Clone();
-            readyPosition.Reset(Constants.BatWaitX, true, false);
+            readyPosition.ResetPosition(getWaitX(state, prepareToServe), false);
+            readyPosition.ResetAim();
             NeedAim = false;
-            Aim = new Aim(readyPosition, this, double.PositiveInfinity, currentTime);
+            Aim = new Aim(readyPosition, this, double.PositiveInfinity, state.Time);
         }
 
         public void RequestAim()
@@ -120,11 +130,11 @@ namespace Magnus
 
         public void FindHit(State state)
         {
-            var initialTime = state.Time;
+            var initialState = state;
 
             if (state.GameState == GameState.Failed || Index != state.HitSide)
             {
-                MoveToInitialPosition(initialTime);
+                MoveToInitialPosition(initialState, false);
                 return;
             }
 
@@ -157,7 +167,7 @@ namespace Magnus
             {
                 if (!state.DoStepsUntilGameState(GameState.FlyingToBat))
                 {
-                    MoveToInitialPosition(initialTime);
+                    MoveToInitialPosition(initialState, true);
                     return;
                 }
 
@@ -233,7 +243,7 @@ namespace Magnus
                     player.AnglePitch = -player.AnglePitch;
                 }
 
-                var newAim = new Aim(player, this, attemptState.Time, initialTime);
+                var newAim = new Aim(player, this, attemptState.Time, initialState.Time);
                 if (newAim.HasTimeToReact)
                 {
                     var simulation = new Simulation(attemptState);

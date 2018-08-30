@@ -14,6 +14,8 @@ namespace Magnus
 
         public readonly bool HasTimeToReact;
 
+        public double AimX => aimPlayer.Position.X;
+
         public Aim(Player aimPlayer, Player aimPlayer0, double aimT, double aimT0)
         {
             this.aimPlayer = aimPlayer.Clone();
