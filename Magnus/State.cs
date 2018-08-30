@@ -75,7 +75,7 @@ namespace Magnus
                 Ball.DoStepSimplified(relativeState.Ball, Time - relativeState.Time);
             }
 
-            events |= checkForHits(prevBallState);
+            events |= checkForHits(prevBallState, relativeState != null);
 
             if (Ball.Side != prevBallState.Side)
             {
@@ -167,7 +167,7 @@ namespace Magnus
             }
         }
 
-        private Event checkForHits(Ball prevBallState)
+        private Event checkForHits(Ball prevBallState, bool closerToFail = false)
         {
             Event events = 0;
 
@@ -182,8 +182,9 @@ namespace Magnus
                 endSet(GameState.IsOneOf(GameState.NotReadyToHit));
             }
 
-            var tableEndX = Constants.HalfTableLength + Constants.BallRadius;
-            var tableEndZ = Constants.HalfTableWidth + Constants.BallRadius;
+            var tableEndMargin = closerToFail ? Constants.SimulationBordersMargin * Math.Sign(Ball.Speed.Y) : Constants.BallRadius;
+            var tableEndX = Constants.HalfTableLength + tableEndMargin;
+            var tableEndZ = Constants.HalfTableWidth + tableEndMargin;
             var verticalSpeedSign = Math.Sign(Ball.Speed.Y);
             if (
                 verticalSpeedSign != 0 &&
@@ -251,20 +252,20 @@ namespace Magnus
             return doStep(null, Constants.SimulationFrameTime, true, true);
         }
 
-        public bool DoStepsUntilGameState(GameState gameStates, State relativeState = null, double dt = Constants.SimulationFrameTime, bool useBat = false)
+        public bool DoStepsUntilGameState(GameState gameStates)
         {
             while (!GameState.IsOneOf(gameStates | GameState.Failed))
             {
-                DoStep(relativeState, dt, useBat);
+                DoStep();
             }
             return GameState != GameState.Failed;
         }
 
-        public bool DoStepsUntilEvent(Event events, State relativeState = null, double dt = Constants.SimulationFrameTime, bool useBat = false)
+        public bool DoStepsUntilEvent(Event events)
         {
             while (GameState != GameState.Failed)
             {
-                if (DoStep(relativeState, dt, useBat).HasOneOfEvents(events))
+                if (DoStep().HasOneOfEvents(events))
                 {
                     return true;
                 }

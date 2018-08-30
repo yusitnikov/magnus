@@ -44,9 +44,9 @@ namespace Magnus
             }
 
             TableHitX = state.Ball.Position.X;
-            if (Math.Abs(TableHitX) < Constants.MinTableHitX || Math.Abs(TableHitX) > Constants.MaxTableHitX)
+            if (Math.Abs(TableHitX) < Constants.SimulationNetMargin && DoublePoint3D.VectorMult(state.Ball.Speed, state.Ball.AngularSpeed).Y > 0)
             {
-                return;
+                    return;
             }
 
             if (MaxHeight > Constants.MaxBallMaxHeight)
