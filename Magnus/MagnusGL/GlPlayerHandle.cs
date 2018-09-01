@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using Mathematics.Math3D;
+using System.Linq;
 
 namespace Magnus.MagnusGL
 {
@@ -22,7 +23,7 @@ namespace Magnus.MagnusGL
 
         private GlIndexedVertex[] getBatPoints(Player player, double x, double r)
         {
-            return getCirclePoints(r).Select(point => new GlIndexedVertex(player.TranslatePointFromBatCoords(new DoublePoint3D(point.Z * 2, point.Y, x)), nextVertexIndex)).ToArray();
+            return getCirclePoints(r).Select(point => new GlIndexedVertex(player.TranslatePointFromBatCoords(new Point3D(point.Z * 2, point.Y, x)), nextVertexIndex)).ToArray();
         }
     }
 }

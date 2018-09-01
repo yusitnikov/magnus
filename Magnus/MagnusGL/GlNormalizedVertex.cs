@@ -1,11 +1,13 @@
-﻿namespace Magnus.MagnusGL
+﻿using Mathematics.Math3D;
+
+namespace Magnus.MagnusGL
 {
     class GlNormalizedVertex
     {
         public GlIndexedVertex Vertex;
-        public DoublePoint3D Normal;
+        public Point3D Normal;
 
-        public GlNormalizedVertex(GlIndexedVertex vertex, DoublePoint3D normal)
+        public GlNormalizedVertex(GlIndexedVertex vertex, Point3D normal)
         {
             Vertex = vertex;
             Normal = normal;

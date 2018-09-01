@@ -1,10 +1,13 @@
 ﻿using Magnus.Strategies;
+using Mathematics.Math3D;
 using System;
 
 namespace Magnus
 {
     class Player : ASurface
     {
+        public static double LastSearchTime = 0;
+
         public int Index;
 
         public int Side => Misc.GetPlayerSideByIndex(Index);
@@ -15,9 +18,9 @@ namespace Magnus
 
         public double AnglePitch, AngleYaw;
 
-        public override DoublePoint3D Normal
+        public override Point3D Normal
         {
-            get => TranslateVectorFromBatCoords(DoublePoint3D.YAxis);
+            get => TranslateVectorFromBatCoords(Point3D.YAxis);
             set
             {
                 AnglePitch = value.Pitch;
@@ -25,7 +28,7 @@ namespace Magnus
             }
         }
 
-        public DoublePoint3D DefaultNormal => new DoublePoint3D(-Side, 0, 0);
+        public Point3D DefaultNormal => new Point3D(-Side, 0, 0);
 
         public bool NeedAim;
         public Aim Aim;
@@ -39,18 +42,18 @@ namespace Magnus
             Index = index;
             Score = 0;
             Strategy = new Strategy();
-            Position = Speed = DoublePoint3D.Empty;
+            Position = Speed = Point3D.Empty;
             Normal = DefaultNormal;
             NeedAim = false;
             Aim = null;
         }
 
-        public DoublePoint3D TranslateVectorFromBatCoords(DoublePoint3D point)
+        public Point3D TranslateVectorFromBatCoords(Point3D point)
         {
             return point.RotatePitch(AnglePitch).RotateYaw(AngleYaw);
         }
 
-        public DoublePoint3D TranslatePointFromBatCoords(DoublePoint3D point)
+        public Point3D TranslatePointFromBatCoords(Point3D point)
         {
             return Position + TranslateVectorFromBatCoords(point);
         }
@@ -62,8 +65,8 @@ namespace Magnus
                 Normal = DefaultNormal;
             }
 
-            Position = new DoublePoint3D(x * Side, Constants.BatWaitY, 0);
-            Speed = DoublePoint3D.Empty;
+            Position = new Point3D(x * Side, Constants.BatWaitY, 0);
+            Speed = Point3D.Empty;
         }
 
         public void ResetAim()
@@ -192,6 +195,7 @@ namespace Magnus
                 };
             }
 
+            var iterations = 0;
             while (NeedAim && (DateTime.Now - searchStartTime).TotalSeconds < Constants.MaxThinkTimePerFrame)
             {
                 var attemptState = state.Clone(true);
@@ -232,7 +236,7 @@ namespace Magnus
                 player.AngleYaw = reverseBallSpeedYaw + attackYaw;
                 player.AnglePitch = reverseBallSpeedPitch + attackPitch;
                 player.Position = attemptState.Ball.Position - Constants.BallRadius * player.Normal;
-                player.Speed = hitSpeed * DoublePoint3D.FromAngles(reverseBallSpeedPitch + velocityAttackPitch, reverseBallSpeedYaw + attackYaw + velocityAttackYaw);
+                player.Speed = hitSpeed * Point3D.FromAngles(reverseBallSpeedPitch + velocityAttackPitch, reverseBallSpeedYaw + attackYaw + velocityAttackYaw);
                 if (player.Position.Z * player.Side > 0)
                 {
                     player.AnglePitch += Math.PI;
@@ -253,7 +257,10 @@ namespace Magnus
                         Aim = newAim;
                     }
                 }
+
+                ++iterations;
             }
+            LastSearchTime = (DateTime.Now - searchStartTime).TotalSeconds * 1000000 / iterations;
         }
     }
 }

@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Mathematics.Math3D;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 
@@ -48,12 +49,12 @@ namespace Magnus.MagnusGL
             Profiler.Instance.LogEvent("mesh: add shadow");
         }
 
-        protected DoublePoint3D[] getCirclePoints(double radius, int circlePointsCount = DefaultCirclePointsCount)
+        protected Point3D[] getCirclePoints(double radius, int circlePointsCount = DefaultCirclePointsCount)
         {
-            var points = new DoublePoint3D[circlePointsCount];
+            var points = new Point3D[circlePointsCount];
             for (var i = 0; i < circlePointsCount; i++)
             {
-                points[i] = radius * DoublePoint3D.YAxis.RotateRoll(2 * Math.PI * i / circlePointsCount);
+                points[i] = radius * Point3D.YAxis.RotateRoll(2 * Math.PI * i / circlePointsCount);
             }
             return points;
         }

@@ -1,4 +1,6 @@
-﻿using System;
+﻿using Mathematics.Expressions;
+using Mathematics.Math3D;
+using System;
 
 namespace Magnus
 {
@@ -19,7 +21,7 @@ namespace Magnus
         {
             Ball = new Ball()
             {
-                MarkPoint = DoublePoint3D.XAxis
+                MarkPoint = Point3D.XAxis
             };
             UpdateNextServeX();
             Players = new Player[2];
@@ -47,15 +49,15 @@ namespace Magnus
         public void Reset()
         {
             GameState = GameState.Serving;
-            Ball.Position = new DoublePoint3D(NextServeX * Misc.GetPlayerSideByIndex(HitSide), Constants.NetHeight, 0);
-            Ball.Speed = new DoublePoint3D(0, Misc.Rnd(Constants.MinBallServeThrowSpeed, Constants.MaxBallServeThrowSpeed), 0);
-            Ball.AngularSpeed = DoublePoint3D.Empty;
+            Ball.Position = new Point3D(NextServeX * Misc.GetPlayerSideByIndex(HitSide), Constants.NetHeight, 0);
+            Ball.Speed = new Point3D(0, Misc.Rnd(Constants.MinBallServeThrowSpeed, Constants.MaxBallServeThrowSpeed), 0);
+            Ball.AngularSpeed = Point3D.Empty;
 
             UpdateNextServeX();
             Players[HitSide].RequestAim();
         }
 
-        private Event doStep(State relativeState, double dt, bool useBat, bool updateBat = false)
+        private Event doStep(State relativeState, BallExpression simplifiedTrajectory, Variable t, double dt, bool useBat, bool updateBat = false)
         {
             var events = Event.None;
 
@@ -68,11 +70,23 @@ namespace Magnus
                 events |= doPlayerStep(dt, updateBat);
             }
 
-            var simplify = relativeState != null;
-            Ball.DoStep(dt, simplify);
-            if (simplify)
+            if (relativeState != null)
             {
-                Ball.DoStepSimplified(relativeState.Ball, Time - relativeState.Time);
+                if (Simulation.UseBinarySearch)
+                {
+                    t.Value = Time - relativeState.Time;
+                    Ball.AngularSpeed = simplifiedTrajectory.AngularSpeed.Evaluate();
+                    Ball.Position = simplifiedTrajectory.Position.Evaluate();
+                    Ball.Speed = simplifiedTrajectory.Speed.Evaluate();
+                }
+                else
+                {
+                    Ball.DoStepSimplified(relativeState.Ball, Time - relativeState.Time);
+                }
+            }
+            else
+            {
+                Ball.DoStep(dt, false);
             }
 
             events |= checkForHits(prevBallState, relativeState != null);
@@ -90,11 +104,6 @@ namespace Magnus
             if (Ball.Speed.Y <= 0 && prevBallState.Speed.Y > 0 && events == 0)
             {
                 events = Event.MaxHeight;
-            }
-
-            if (relativeState != null && events.HasOneOfEvents(Event.AnyHit))
-            {
-                relativeState.CopyFrom(this, false);
             }
 
             return events;
@@ -117,7 +126,7 @@ namespace Magnus
                     events |= Event.BatHit;
                     events |= player.Index == Constants.RightPlayerIndex ? Event.RightBatHit : Event.LeftBatHit;
 
-                    var batSide = DoublePoint3D.ScalarMult(ballInBatSystem.Speed.Vertical, player.Normal) <= 0 ? 1 : -1;
+                    var batSide = Point3D.ScalarMult(ballInBatSystem.Speed.Vertical, player.Normal) <= 0 ? 1 : -1;
                     Ball.ProcessHit(player, Constants.BallHitHorizontalCoeff, Constants.BallHitVerticalCoeff, batSide);
 
                     if (GameState != GameState.Failed)
@@ -242,14 +251,14 @@ namespace Magnus
             return events;
         }
 
-        public Event DoStep(State relativeState = null, double dt = Constants.SimulationFrameTime, bool useBat = false)
+        public Event DoStep(bool useBat = false, State relativeState = null, BallExpression simplifiedTrajectory = null, Variable t = null, double dt = Constants.SimulationFrameTime)
         {
-            return doStep(relativeState, dt, useBat);
+            return doStep(relativeState, simplifiedTrajectory, t, dt, useBat);
         }
 
         public Event DoStepWithBatUpdate()
         {
-            return doStep(null, Constants.SimulationFrameTime, true, true);
+            return doStep(null, null, null, Constants.SimulationFrameTime, true, true);
         }
 
         public bool DoStepsUntilGameState(GameState gameStates)

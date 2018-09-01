@@ -1,15 +1,18 @@
-﻿using System;
+﻿using Mathematics;
+using Mathematics.Expressions;
+using Mathematics.Math3D;
+using System;
 
 namespace Magnus
 {
     class Ball
     {
-        public static readonly DoublePoint3D GravityForce = new DoublePoint3D(0, -Constants.GravityForce, 0);
+        public static readonly Point3D GravityForce = new Point3D(0, -Constants.GravityForce, 0);
 
-        public DoublePoint3D Position, Speed;
-        public DoublePoint3D AngularSpeed;
+        public Point3D Position, Speed;
+        public Point3D AngularSpeed;
         // A point on the ball that rotates with the ball and indicates ball rotation in UI
-        public DoublePoint3D MarkPoint;
+        public Point3D MarkPoint;
 
         public int Side => Math.Sign(Position.X);
 
@@ -30,11 +33,11 @@ namespace Magnus
 
         public void DoStep(double dt, bool simplified)
         {
-            var simplifiedSpeed = simplified ? new DoublePoint3D(Speed.X, 0, Speed.Z) : Speed;
+            var simplifiedSpeed = simplified ? new Point3D(Speed.X, 0, Speed.Z) : Speed;
             // V' = L V x W - D |V| V + G
-            DoublePoint3D force = Constants.BallLiftCoeff * DoublePoint3D.VectorMult(simplifiedSpeed, AngularSpeed) - Constants.BallDumpCoeff * simplifiedSpeed.Length * Speed + GravityForce;
+            Point3D force = Constants.BallLiftCoeff * Point3D.VectorMult(simplifiedSpeed, AngularSpeed) - Constants.BallDumpCoeff * simplifiedSpeed.Length * Speed + GravityForce;
             // W' = -AD W sqrt |W|
-            DoublePoint3D angularForce = -Constants.BallAngularDumpCoeff * AngularSpeed * Math.Sqrt(AngularSpeed.Length);
+            Point3D angularForce = -Constants.BallAngularDumpCoeff * AngularSpeed * Math.Sqrt(AngularSpeed.Length);
 
             Position += Speed * dt + force * (dt * dt / 2);
             MarkPoint = MarkPoint.RotateByAngle3D(AngularSpeed * dt);
@@ -79,7 +82,7 @@ namespace Magnus
 
             // V_v' = L V_h0 x W_h / fh - D |V_h| V_v + G
             // L V_h0 x W_h0
-            var verticalLiftForce = Constants.BallLiftCoeff * DoublePoint3D.VectorMult(speedProjection.Horizontal, angularSpeedProjection.Horizontal);
+            var verticalLiftForce = Constants.BallLiftCoeff * Point3D.VectorMult(speedProjection.Horizontal, angularSpeedProjection.Horizontal);
             // V_v = (V_v0 + L V_h0 x W_h0 (int dt / fw^2) + G (int fh dt)) / fh
             var verticalSpeed = (speedProjection.Vertical + angularSpeedDumpFunctionIntegral * verticalLiftForce + GravityForce * horizontalSpeedDumpFunctionIntegral) / horizontalSpeedDumpFunction;
 
@@ -88,7 +91,7 @@ namespace Magnus
             // lh = int dt / fh = log fh / kh
             var horizontalSpeedDumpInverseIntegral = horizontalSpeedDumpCoeff == 0 ? dt : Math.Log(horizontalSpeedDumpFunction) / horizontalSpeedDumpCoeff;
             // P_v = P_v0 + int V_v dt
-            DoublePoint3D verticalPosition = positionProjection.Vertical + horizontalSpeedDumpInverseIntegral * speedProjection.Vertical;
+            Point3D verticalPosition = positionProjection.Vertical + horizontalSpeedDumpInverseIntegral * speedProjection.Vertical;
             if (horizontalSpeedDumpCoeff == 0)
             {
                 // P_v = P_v0 + V_v0 t + G t^2 / 2
@@ -103,11 +106,11 @@ namespace Magnus
             }
 
             // int V_h dt
-            DoublePoint3D horizontalSpeedIntegral;
+            Point3D horizontalSpeedIntegral;
             if (horizontalSpeedDumpCoeff == 0)
             {
                 // V_h = 0
-                horizontalSpeedIntegral = DoublePoint3D.Empty;
+                horizontalSpeedIntegral = Point3D.Empty;
             }
             else
             {
@@ -131,7 +134,7 @@ namespace Magnus
                     horizontalLiftIntegral = (_horizontalLiftIntegral(Iwh, horizontalSpeedDumpFunction / angularSpeedDumpFunction) - _horizontalLiftIntegral(Iw, 1 / angularSpeedDumpFunction)) / horizontalSpeedDumpCoeff;
                 }
                 // int V_h dt = rotate(V_h0 |R_h|, arg R_h)
-                horizontalSpeedIntegral = (speedProjection.Horizontal * horizontalLiftIntegral.Length).RotateByAngle3D(DoublePoint3D.YAxis * horizontalLiftIntegral.Arg);
+                horizontalSpeedIntegral = (speedProjection.Horizontal * horizontalLiftIntegral.Length).RotateByAngle3D(Point3D.YAxis * horizontalLiftIntegral.Arg);
             }
             // P_h = P_h0 + int V_h dt
             var horizontalPosition = positionProjection.Horizontal + horizontalSpeedIntegral;
@@ -141,14 +144,14 @@ namespace Magnus
         }
 
         // x(j, f) = e^j * (Ei(-jf) - Ei(-j))
-        private Complex _horizontalLiftIntegral(double j, double x)
+        private static Complex _horizontalLiftIntegral(double j, double x)
         {
-            return Complex.Exp(Complex.I * j) * (Complex.ExpIntOfImaginaryArg(-j * x) - Complex.ExpIntOfImaginaryArg(-j));
+            return Complex.Exp(Complex.I * j) * (Complex.ExpIntOfImaginaryArg(-j, -j * x));
         }
 
         public struct ProjectionToSurface
         {
-            public DoublePoint3D.ProjectionToNormal Position, Speed;
+            public Point3D.ProjectionToNormal Position, Speed;
         }
 
         public ProjectionToSurface ProjectToSurface(ASurface surface)
@@ -174,10 +177,10 @@ namespace Magnus
             projection.Position.Vertical = 2 * Constants.BallRadius * surfaceNormal - projection.Position.Vertical;
             projection.Speed.Vertical *= -verticalHitCoeff;
             var ballPoint = -Constants.BallRadius * surfaceNormal;
-            var fullPerpendicularSpeed = projection.Speed.Horizontal + DoublePoint3D.VectorMult(ballPoint, AngularSpeed);
+            var fullPerpendicularSpeed = projection.Speed.Horizontal + Point3D.VectorMult(ballPoint, AngularSpeed);
             var force = -horizontalHitCoeff * fullPerpendicularSpeed;
             projection.Speed.Horizontal += force;
-            AngularSpeed += DoublePoint3D.VectorMult(force, ballPoint.Normal) / Constants.BallRadius;
+            AngularSpeed += Point3D.VectorMult(force, ballPoint.Normal) / Constants.BallRadius;
             RestoreFromSurfaceProjection(surface, projection);
         }
     }

@@ -53,10 +53,9 @@
   <ItemGroup>
     <Compile Include="Aim.cs" />
     <Compile Include="ASurface.cs" />
+    <Compile Include="BallExpression.cs" />
     <Compile Include="Ball.cs" />
-    <Compile Include="Complex.cs" />
     <Compile Include="Constants.cs" />
-    <Compile Include="DoublePoint3D.cs" />
     <Compile Include="GameStateExtension.cs" />
     <Compile Include="EventExtension.cs" />
     <Compile Include="Event.cs" />
@@ -127,6 +126,12 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Mathematics\Mathematics\Mathematics.csproj">
+      <Project>{1e510f4b-6ddd-4f5c-ab05-976dc45b0cc0}</Project>
+      <Name>Mathematics</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

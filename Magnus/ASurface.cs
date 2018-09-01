@@ -1,9 +1,11 @@
-﻿namespace Magnus
+﻿using Mathematics.Math3D;
+
+namespace Magnus
 {
     abstract class ASurface
     {
-        public DoublePoint3D Position, Speed;
+        public Point3D Position, Speed;
 
-        public abstract DoublePoint3D Normal { get; set; }
+        public abstract Point3D Normal { get; set; }
     }
 }

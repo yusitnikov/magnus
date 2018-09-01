@@ -26,16 +26,6 @@ namespace Magnus
             return 1 - side;
         }
 
-        public static double Hypot(double x, double y)
-        {
-            return Math.Sqrt(x * x + y * y);
-        }
-
-        public static double Hypot(double x, double y, double z)
-        {
-            return Math.Sqrt(x * x + y * y + z * z);
-        }
-
         public static double FromDegrees(double degrees)
         {
             return degrees / 180 * Math.PI;

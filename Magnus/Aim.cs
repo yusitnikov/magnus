@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Mathematics.Math3D;
+using System;
 
 namespace Magnus
 {
@@ -9,7 +10,7 @@ namespace Magnus
 
         private readonly double hitSpeed, forceToHit, timeToHit;
 
-        private readonly DoublePoint3D moveVector;
+        private readonly Point3D moveVector;
         private readonly double moveLength, forceMoveLength, timeToForceMove, timeToSpeedMove, timeToMove;
 
         public readonly bool HasTimeToReact;
@@ -46,7 +47,7 @@ namespace Magnus
             HasTimeToReact = timeToMove + timeToHit <= aimT - aimT0;
         }
 
-        private DoublePoint3D getHitPosition(double t)
+        private Point3D getHitPosition(double t)
         {
             return aimPlayer.Position + aimPlayer.Speed * t - aimPlayer.Speed.Normal * (forceToHit * t * Math.Abs(t) / 2);
         }

@@ -1,4 +1,5 @@
-﻿using System.Drawing;
+﻿using Mathematics.Math3D;
+using System.Drawing;
 
 namespace Magnus.MagnusGL
 {
@@ -8,10 +9,10 @@ namespace Magnus.MagnusGL
         {
             addPolygon(
                 color,
-                new GlIndexedVertex(new DoublePoint3D(0, y, size), nextVertexIndex),
-                new GlIndexedVertex(new DoublePoint3D(size, y, 0), nextVertexIndex),
-                new GlIndexedVertex(new DoublePoint3D(0, y, -size), nextVertexIndex),
-                new GlIndexedVertex(new DoublePoint3D(-size, y, 0), nextVertexIndex)
+                new GlIndexedVertex(new Point3D(0, y, size), nextVertexIndex),
+                new GlIndexedVertex(new Point3D(size, y, 0), nextVertexIndex),
+                new GlIndexedVertex(new Point3D(0, y, -size), nextVertexIndex),
+                new GlIndexedVertex(new Point3D(-size, y, 0), nextVertexIndex)
             );
 
             // don't add a shadow!

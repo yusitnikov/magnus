@@ -1,13 +1,15 @@
-﻿namespace Magnus
+﻿using Mathematics.Math3D;
+
+namespace Magnus
 {
     class Surface : ASurface
     {
-        public static readonly Surface Horizontal = new Surface(DoublePoint3D.Empty, DoublePoint3D.Empty, DoublePoint3D.YAxis);
-        public static readonly Surface HorizontalReverted = new Surface(DoublePoint3D.Empty, DoublePoint3D.Empty, -DoublePoint3D.YAxis);
+        public static readonly Surface Horizontal = new Surface(Point3D.Empty, Point3D.Empty, Point3D.YAxis);
+        public static readonly Surface HorizontalReverted = new Surface(Point3D.Empty, Point3D.Empty, -Point3D.YAxis);
 
-        public override DoublePoint3D Normal { get; set; }
+        public override Point3D Normal { get; set; }
 
-        public Surface(DoublePoint3D position, DoublePoint3D speed, DoublePoint3D normal)
+        public Surface(Point3D position, Point3D speed, Point3D normal)
         {
             Position = position;
             Speed = speed;

@@ -1,4 +1,5 @@
 ﻿using Magnus.MagnusGL;
+using Mathematics.Math3D;
 using OpenTK;
 using OpenTK.Graphics.OpenGL;
 using System;
@@ -250,7 +251,7 @@ namespace Magnus
             meshes.Add(new GlCube(color, x1, y1, z1, x2, y2, z2, withShadow));
         }
 
-        private void drawCircle(Color color, DoublePoint3D center, double radius)
+        private void drawCircle(Color color, Point3D center, double radius)
         {
             meshes.Add(new GlBall(color, center, radius));
         }
@@ -283,7 +284,7 @@ namespace Magnus
             meshes.Add(new GlPlayerHandle(player));
         }
 
-        private Vector3 toV3(DoublePoint3D v)
+        private Vector3 toV3(Point3D v)
         {
             return new Vector3((float)v.X, (float)v.Y, (float)v.Z);
         }

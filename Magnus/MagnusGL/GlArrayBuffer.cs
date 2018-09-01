@@ -1,4 +1,5 @@
-﻿using OpenTK.Graphics.OpenGL;
+﻿using Mathematics.Math3D;
+using OpenTK.Graphics.OpenGL;
 using System.Collections.Generic;
 using System.Drawing;
 
@@ -47,7 +48,7 @@ namespace Magnus.MagnusGL
             data.Clear();
         }
 
-        public void Write(DoublePoint3D v)
+        public void Write(Point3D v)
         {
             data.Add((float)v.X);
             data.Add((float)v.Y);
