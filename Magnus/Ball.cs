@@ -72,11 +72,23 @@ namespace Magnus
             public double[] TDv;
             public Ball[] RelativeBallStateDv;
         }
-        public static Ball DoStepSimplified(Ball relativeBallState, double t)
+        [Flags]
+        public enum Component
         {
-            return DoStepSimplified(relativeBallState, t, null, out SimplifiedStepDerivatives tmp);
+            HorizontalSpeed = 1,
+            VerticalSpeed = 2,
+            Speed = HorizontalSpeed | VerticalSpeed,
+            HorizontalPosition = 4,
+            VerticalPosition = 8,
+            Position = HorizontalPosition | VerticalPosition,
+            AngularSpeed = 16,
+            All = Speed | Position | AngularSpeed,
         }
-        public static Ball DoStepSimplified(Ball relativeBallState, double t, SimplifiedStepDerivatives derivatives, out SimplifiedStepDerivatives outDerivatives)
+        public static Ball DoStepSimplified(Ball relativeBallState, double t, Component components = Component.All)
+        {
+            return DoStepSimplified(relativeBallState, t, null, out SimplifiedStepDerivatives tmp, components);
+        }
+        public static Ball DoStepSimplified(Ball relativeBallState, double t, SimplifiedStepDerivatives derivatives, out SimplifiedStepDerivatives outDerivatives, Component components = Component.All)
         {
             outDerivatives = null;
             var r = new simplifiedStepCalculationVars();
@@ -151,20 +163,12 @@ namespace Magnus
                 }
             }
 
-            // V_h' = L V_h x W_v - D |V_h| V_h
             // kh = D |V_h0|
             r.horizontalSpeedDumpCoeff = Constants.BallDumpCoeff * r.speedProjection.Horizontal.Length;
             // fh = kh t + 1
             r.horizontalSpeedDumpFunction = r.horizontalSpeedDumpCoeff * t + 1;
             // int fh dt = kh t^2/2 + t
             r.horizontalSpeedDumpFunctionIntegral = r.horizontalSpeedDumpCoeff * t * t / 2 + t;
-            // |V_h| = |V_h0| / fh
-            // A_h = L W_v0 Fw
-            r.horizontalRotateAngle = Constants.BallLiftCoeff * r.angularSpeedDumpFunctionIntegral * r.angularSpeedProjection.Vertical.Y;
-            // V_h0 / fh
-            r.horizontalSpeedBeforeRotation = r.speedProjection.Horizontal / r.horizontalSpeedDumpFunction;
-            // V_h = rotate(V_h0 / fh, A_h)
-            r.horizontalSpeed = r.horizontalSpeedBeforeRotation.RotateYaw(r.horizontalRotateAngle);
             if (derivatives != null)
             {
                 var horizontalSpeedNormal = r.speedProjection.Horizontal.Normal;
@@ -175,208 +179,277 @@ namespace Magnus
 
                     rdv.horizontalSpeedDumpCoeff = Constants.BallDumpCoeff * Point3D.ScalarMult(horizontalSpeedNormal, rdv.speedProjection.Horizontal);
                     rdv.horizontalSpeedDumpFunction = rdv.horizontalSpeedDumpCoeff * t + r.horizontalSpeedDumpCoeff * tdv;
-                    rdv.horizontalSpeedDumpFunctionIntegral = rdv.horizontalSpeedDumpCoeff * t * t / 2 + r.horizontalSpeedDumpCoeff * t * tdv + tdv;
-                    rdv.horizontalRotateAngle = Constants.BallLiftCoeff * (r.angularSpeedDumpFunctionIntegral * rdv.angularSpeedProjection.Vertical.Y + rdv.angularSpeedDumpFunctionIntegral * r.angularSpeedProjection.Vertical.Y);
-                    rdv.horizontalSpeedBeforeRotation = (rdv.speedProjection.Horizontal - rdv.horizontalSpeedDumpFunction * r.horizontalSpeedBeforeRotation) / r.horizontalSpeedDumpFunction;
-                    rdv.horizontalSpeed = r.horizontalSpeedBeforeRotation.GetRotateYawDerivative(r.horizontalRotateAngle, rdv.horizontalSpeedBeforeRotation, rdv.horizontalRotateAngle);
+                    rdv.horizontalSpeedDumpFunctionIntegral = rdv.horizontalSpeedDumpCoeff * t * t / 2 + t + r.horizontalSpeedDumpFunction * tdv;
                 }
             }
 
-            // V_v' = L V_h0 x W_h / fh - D |V_h| V_v + G
-            // L V_h0 x W_h0
-            r.verticalLiftForce = Constants.BallLiftCoeff * Point3D.VectorMult(r.speedProjection.Horizontal, r.angularSpeedProjection.Horizontal);
-            // V_v = (V_v0 + L V_h0 x W_h0 (int dt / fw^2) + G (int fh dt)) / fh
-            var verticalSpeedDividend = r.speedProjection.Vertical + r.angularSpeedDumpFunctionIntegral * r.verticalLiftForce + GravityForce * r.horizontalSpeedDumpFunctionIntegral;
-            r.verticalSpeed = verticalSpeedDividend / r.horizontalSpeedDumpFunction;
-            if (derivatives != null)
+            if (components.HasFlag(Component.HorizontalSpeed))
             {
-                for (var i = 0; i < varsCount; i++)
+                // V_h' = L V_h x W_v - D |V_h| V_h
+                // |V_h| = |V_h0| / fh
+                // A_h = L W_v0 Fw
+                r.horizontalRotateAngle = Constants.BallLiftCoeff * r.angularSpeedDumpFunctionIntegral * r.angularSpeedProjection.Vertical.Y;
+                // V_h0 / fh
+                r.horizontalSpeedBeforeRotation = r.speedProjection.Horizontal / r.horizontalSpeedDumpFunction;
+                // V_h = rotate(V_h0 / fh, A_h)
+                r.horizontalSpeed = r.horizontalSpeedBeforeRotation.RotateYaw(r.horizontalRotateAngle);
+                if (derivatives != null)
                 {
-                    var rdv = resultDerivatives[i];
-
-                    rdv.verticalLiftForce = Constants.BallLiftCoeff * (Point3D.VectorMult(rdv.speedProjection.Horizontal, r.angularSpeedProjection.Horizontal) + Point3D.VectorMult(r.speedProjection.Horizontal, rdv.angularSpeedProjection.Horizontal));
-                    var verticalSpeedDividendDerivative = rdv.speedProjection.Vertical
-                        + rdv.angularSpeedDumpFunctionIntegral * r.verticalLiftForce + r.angularSpeedDumpFunctionIntegral * rdv.verticalLiftForce
-                        + GravityForce * rdv.horizontalSpeedDumpFunctionIntegral;
-                    rdv.verticalSpeed = (verticalSpeedDividendDerivative - rdv.horizontalSpeedDumpFunction * r.verticalSpeed) / r.horizontalSpeedDumpFunction;
-                }
-            }
-
-            r.Speed = r.horizontalSpeed + r.verticalSpeed;
-            if (derivatives != null)
-            {
-                for (var i = 0; i < varsCount; i++)
-                {
-                    var rdv = resultDerivatives[i];
-
-                    rdv.Speed = rdv.horizontalSpeed + rdv.verticalSpeed;
-                }
-            }
-
-            // lw = int dt / fw = log fw / kw
-            r.angularSpeedDumpInverseIntegral = r.angularSpeedDumpCoeff == 0 ? t : Math.Log(r.angularSpeedDumpFunction) / r.angularSpeedDumpCoeff;
-            // lh = int dt / fh = log fh / kh
-            r.horizontalSpeedDumpInverseIntegral = r.horizontalSpeedDumpCoeff == 0 ? t : Math.Log(r.horizontalSpeedDumpFunction) / r.horizontalSpeedDumpCoeff;
-            // P_v = P_v0 + int V_v dt
-            r.verticalPosition = r.positionProjection.Vertical + r.horizontalSpeedDumpInverseIntegral * r.speedProjection.Vertical;
-            if (derivatives != null)
-            {
-                for (var i = 0; i < varsCount; i++)
-                {
-                    var rdv = resultDerivatives[i];
-                    var tdv = derivatives.TDv != null ? derivatives.TDv[i] : 0;
-
-                    // dlw = (dfw / fw - lw dkw) / kw
-                    rdv.angularSpeedDumpInverseIntegral = r.angularSpeedDumpCoeff == 0 ? tdv : (rdv.angularSpeedDumpFunction / r.angularSpeedDumpFunction - rdv.angularSpeedDumpCoeff * r.angularSpeedDumpInverseIntegral) / r.angularSpeedDumpCoeff;
-                    // dlh = (dfh / fh - lh dkh) / kh
-                    rdv.horizontalSpeedDumpInverseIntegral = r.horizontalSpeedDumpCoeff == 0 ? tdv : (rdv.horizontalSpeedDumpFunction / r.horizontalSpeedDumpFunction - rdv.horizontalSpeedDumpCoeff * r.horizontalSpeedDumpInverseIntegral) / r.horizontalSpeedDumpCoeff;
-                    rdv.verticalPosition = rdv.positionProjection.Vertical + rdv.horizontalSpeedDumpInverseIntegral * r.speedProjection.Vertical + r.horizontalSpeedDumpInverseIntegral * rdv.speedProjection.Vertical;
-                }
-            }
-            if (r.horizontalSpeedDumpCoeff == 0)
-            {
-                // P_v = P_v0 + V_v0 t + G t^2 / 2
-                r.verticalPosition += GravityForce * (t * t / 2);
-                if (derivatives != null && derivatives.TDv != null)
-                {
+                    var horizontalSpeedNormal = r.speedProjection.Horizontal.Normal;
                     for (var i = 0; i < varsCount; i++)
                     {
                         var rdv = resultDerivatives[i];
-                        var tdv = derivatives.TDv[i];
 
-                        rdv.verticalPosition += GravityForce * t * tdv;
+                        rdv.horizontalRotateAngle = Constants.BallLiftCoeff * (r.angularSpeedDumpFunctionIntegral * rdv.angularSpeedProjection.Vertical.Y + rdv.angularSpeedDumpFunctionIntegral * r.angularSpeedProjection.Vertical.Y);
+                        rdv.horizontalSpeedBeforeRotation = (rdv.speedProjection.Horizontal - rdv.horizontalSpeedDumpFunction * r.horizontalSpeedBeforeRotation) / r.horizontalSpeedDumpFunction;
+                        rdv.horizontalSpeed = r.horizontalSpeedBeforeRotation.GetRotateYawDerivative(r.horizontalRotateAngle, rdv.horizontalSpeedBeforeRotation, rdv.horizontalRotateAngle);
                     }
                 }
             }
-            else
+
+            if (components.HasFlag(Component.VerticalSpeed) || components.HasFlag(Component.VerticalPosition))
             {
-                // P_v = P_v0 + lh V_v0 + L V_h0 x W_h0 (lw - lh) / (kh - kw) + G (fh^2 - 1 - 2 kh lh) / 4kh^2
-                var verticalLiftIntegralDividend = r.angularSpeedDumpInverseIntegral - r.horizontalSpeedDumpInverseIntegral;
-                var verticalLiftIntegralDivisor = r.horizontalSpeedDumpCoeff - r.angularSpeedDumpCoeff;
-                r.verticalLiftIntegral = verticalLiftIntegralDividend / verticalLiftIntegralDivisor;
-                var gravityIntegralDividend = r.horizontalSpeedDumpFunction * r.horizontalSpeedDumpFunction - 1 - 2 * r.horizontalSpeedDumpCoeff * r.horizontalSpeedDumpInverseIntegral;
-                var gravityIntegralDivisor = 4 * r.horizontalSpeedDumpCoeff * r.horizontalSpeedDumpCoeff;
-                r.gravityIntegral = gravityIntegralDividend / gravityIntegralDivisor;
-                r.verticalPosition += r.verticalLiftIntegral * r.verticalLiftForce + r.gravityIntegral * GravityForce;
+                // L V_h0 x W_h0
+                r.verticalLiftForce = Constants.BallLiftCoeff * Point3D.VectorMult(r.speedProjection.Horizontal, r.angularSpeedProjection.Horizontal);
                 if (derivatives != null)
                 {
                     for (var i = 0; i < varsCount; i++)
                     {
                         var rdv = resultDerivatives[i];
 
-                        var verticalLiftIntegralDividendDerivative = rdv.angularSpeedDumpInverseIntegral - rdv.horizontalSpeedDumpInverseIntegral;
-                        var verticalLiftIntegralDivisorDerivative = rdv.horizontalSpeedDumpCoeff - rdv.angularSpeedDumpCoeff;
-                        rdv.verticalLiftIntegral = (verticalLiftIntegralDividendDerivative - verticalLiftIntegralDivisorDerivative * r.verticalLiftIntegral) / verticalLiftIntegralDivisor;
-                        var gravityIntegralDividendDerivative = rdv.horizontalSpeedDumpFunction * r.horizontalSpeedDumpFunction + r.horizontalSpeedDumpFunction * rdv.horizontalSpeedDumpFunction
-                                                              - 2 * (rdv.horizontalSpeedDumpCoeff * r.horizontalSpeedDumpInverseIntegral + r.horizontalSpeedDumpCoeff * rdv.horizontalSpeedDumpInverseIntegral);
-                        var gravityIntegralDivisorDerivative = 8 * r.horizontalSpeedDumpCoeff * rdv.horizontalSpeedDumpCoeff;
-                        rdv.gravityIntegral = (gravityIntegralDividendDerivative - gravityIntegralDivisorDerivative * r.gravityIntegral) / gravityIntegralDivisor;
-                        rdv.verticalPosition += rdv.verticalLiftIntegral * r.verticalLiftForce + r.verticalLiftIntegral * rdv.verticalLiftForce + rdv.gravityIntegral * GravityForce;
+                        rdv.verticalLiftForce = Constants.BallLiftCoeff * (Point3D.VectorMult(rdv.speedProjection.Horizontal, r.angularSpeedProjection.Horizontal) + Point3D.VectorMult(r.speedProjection.Horizontal, rdv.angularSpeedProjection.Horizontal));
                     }
                 }
             }
 
-            // int V_h dt
-            if (r.horizontalSpeedDumpCoeff == 0)
+            if (components.HasFlag(Component.VerticalSpeed))
             {
-                // V_h = 0
-                r.horizontalSpeedIntegral = Point3D.Empty;
+                // V_v' = L V_h0 x W_h / fh - D |V_h| V_v + G
+                // V_v = (V_v0 + L V_h0 x W_h0 (int dt / fw^2) + G (int fh dt)) / fh
+                var verticalSpeedDividend = r.speedProjection.Vertical + r.angularSpeedDumpFunctionIntegral * r.verticalLiftForce + GravityForce * r.horizontalSpeedDumpFunctionIntegral;
+                r.verticalSpeed = verticalSpeedDividend / r.horizontalSpeedDumpFunction;
                 if (derivatives != null)
                 {
                     for (var i = 0; i < varsCount; i++)
                     {
                         var rdv = resultDerivatives[i];
 
-                        rdv.horizontalSpeedIntegral = Point3D.Empty;
+                        var verticalSpeedDividendDerivative = rdv.speedProjection.Vertical
+                            + rdv.angularSpeedDumpFunctionIntegral * r.verticalLiftForce + r.angularSpeedDumpFunctionIntegral * rdv.verticalLiftForce
+                            + GravityForce * rdv.horizontalSpeedDumpFunctionIntegral;
+                        rdv.verticalSpeed = (verticalSpeedDividendDerivative - rdv.horizontalSpeedDumpFunction * r.verticalSpeed) / r.horizontalSpeedDumpFunction;
                     }
                 }
             }
-            else
+
+            if (components.HasFlag(Component.VerticalSpeed) || components.HasFlag(Component.HorizontalSpeed))
             {
-                // R_h = int (e^iA_h / fh) dt
-                if (r.angularSpeedDumpCoeff == 0)
+                r.Speed = r.horizontalSpeed + r.verticalSpeed;
+                if (derivatives != null)
                 {
-                    // R_h = lh
-                    r.horizontalLiftIntegral = r.horizontalSpeedDumpInverseIntegral;
-                    if (derivatives != null)
+                    for (var i = 0; i < varsCount; i++)
+                    {
+                        var rdv = resultDerivatives[i];
+
+                        rdv.Speed = rdv.horizontalSpeed + rdv.verticalSpeed;
+                    }
+                }
+            }
+
+            if (components.HasFlag(Component.VerticalPosition) || components.HasFlag(Component.HorizontalPosition))
+            {
+                // lh = int dt / fh = log fh / kh
+                r.horizontalSpeedDumpInverseIntegral = r.horizontalSpeedDumpCoeff == 0 ? t : Math.Log(r.horizontalSpeedDumpFunction) / r.horizontalSpeedDumpCoeff;
+                if (derivatives != null)
+                {
+                    for (var i = 0; i < varsCount; i++)
+                    {
+                        var rdv = resultDerivatives[i];
+                        var tdv = derivatives.TDv != null ? derivatives.TDv[i] : 0;
+
+                        // dlh = (dfh / fh - lh dkh) / kh
+                        rdv.horizontalSpeedDumpInverseIntegral = r.horizontalSpeedDumpCoeff == 0 ? tdv : (rdv.horizontalSpeedDumpFunction / r.horizontalSpeedDumpFunction - rdv.horizontalSpeedDumpCoeff * r.horizontalSpeedDumpInverseIntegral) / r.horizontalSpeedDumpCoeff;
+                    }
+                }
+            }
+
+            if (components.HasFlag(Component.VerticalPosition))
+            {
+                // lw = int dt / fw = log fw / kw
+                r.angularSpeedDumpInverseIntegral = r.angularSpeedDumpCoeff == 0 ? t : Math.Log(r.angularSpeedDumpFunction) / r.angularSpeedDumpCoeff;
+                // P_v = P_v0 + int V_v dt
+                r.verticalPosition = r.positionProjection.Vertical + r.horizontalSpeedDumpInverseIntegral * r.speedProjection.Vertical;
+                if (derivatives != null)
+                {
+                    for (var i = 0; i < varsCount; i++)
+                    {
+                        var rdv = resultDerivatives[i];
+                        var tdv = derivatives.TDv != null ? derivatives.TDv[i] : 0;
+
+                        // dlw = (dfw / fw - lw dkw) / kw
+                        rdv.angularSpeedDumpInverseIntegral = r.angularSpeedDumpCoeff == 0 ? tdv : (rdv.angularSpeedDumpFunction / r.angularSpeedDumpFunction - rdv.angularSpeedDumpCoeff * r.angularSpeedDumpInverseIntegral) / r.angularSpeedDumpCoeff;
+                        rdv.verticalPosition = rdv.positionProjection.Vertical + rdv.horizontalSpeedDumpInverseIntegral * r.speedProjection.Vertical + r.horizontalSpeedDumpInverseIntegral * rdv.speedProjection.Vertical;
+                    }
+                }
+                if (r.horizontalSpeedDumpCoeff == 0)
+                {
+                    // P_v = P_v0 + V_v0 t + G t^2 / 2
+                    r.verticalPosition += GravityForce * (t * t / 2);
+                    if (derivatives != null && derivatives.TDv != null)
                     {
                         for (var i = 0; i < varsCount; i++)
                         {
                             var rdv = resultDerivatives[i];
+                            var tdv = derivatives.TDv[i];
 
-                            rdv.horizontalLiftIntegral = rdv.horizontalSpeedDumpInverseIntegral;
+                            rdv.verticalPosition += GravityForce * t * tdv;
                         }
                     }
                 }
                 else
                 {
-                    // I_0 = L W_v0
-                    r.I0 = Constants.BallLiftCoeff * r.angularSpeedProjection.Vertical.Y;
-                    // I_wh = I_0 / (kw - kh)
-                    r.Iwh = r.I0 / (r.angularSpeedDumpCoeff - r.horizontalSpeedDumpCoeff);
-                    // I_w = I_0 / kw
-                    r.Iw = r.I0 / r.angularSpeedDumpCoeff;
-                    // x(j, f) = e^ij * (Ei(-ijf) - Ei(-ij))
-                    // R_h = (x(I_wh, fh / fw) - x(I_w, 1 / fw)) / kh
-                    var horizontalLiftIntegralDividend = _horizontalLiftIntegral(r.Iwh, r.horizontalSpeedDumpFunction / r.angularSpeedDumpFunction) - _horizontalLiftIntegral(r.Iw, 1 / r.angularSpeedDumpFunction);
-                    r.horizontalLiftIntegral = horizontalLiftIntegralDividend / r.horizontalSpeedDumpCoeff;
+                    // P_v = P_v0 + lh V_v0 + L V_h0 x W_h0 (lw - lh) / (kh - kw) + G (fh^2 - 1 - 2 kh lh) / 4kh^2
+                    var verticalLiftIntegralDividend = r.angularSpeedDumpInverseIntegral - r.horizontalSpeedDumpInverseIntegral;
+                    var verticalLiftIntegralDivisor = r.horizontalSpeedDumpCoeff - r.angularSpeedDumpCoeff;
+                    r.verticalLiftIntegral = verticalLiftIntegralDividend / verticalLiftIntegralDivisor;
+                    var gravityIntegralDividend = r.horizontalSpeedDumpFunction * r.horizontalSpeedDumpFunction - 1 - 2 * r.horizontalSpeedDumpCoeff * r.horizontalSpeedDumpInverseIntegral;
+                    var gravityIntegralDivisor = 4 * r.horizontalSpeedDumpCoeff * r.horizontalSpeedDumpCoeff;
+                    r.gravityIntegral = gravityIntegralDividend / gravityIntegralDivisor;
+                    r.verticalPosition += r.verticalLiftIntegral * r.verticalLiftForce + r.gravityIntegral * GravityForce;
                     if (derivatives != null)
                     {
                         for (var i = 0; i < varsCount; i++)
                         {
                             var rdv = resultDerivatives[i];
 
-                            rdv.I0 = Constants.BallLiftCoeff * rdv.angularSpeedProjection.Vertical.Y;
-                            rdv.Iwh = (rdv.I0 - (rdv.angularSpeedDumpCoeff - rdv.horizontalSpeedDumpCoeff) * r.Iwh) / (r.angularSpeedDumpCoeff - r.horizontalSpeedDumpCoeff);
-                            rdv.Iw = (rdv.I0 - rdv.angularSpeedDumpCoeff * r.Iw) / r.angularSpeedDumpCoeff;
-                            var horizontalLiftIntegralDividendDerivative = _horizontalLiftIntegralDerivative(
-                                    r.Iwh, r.horizontalSpeedDumpFunction / r.angularSpeedDumpFunction,
-                                    rdv.Iwh, (rdv.horizontalSpeedDumpFunction - rdv.angularSpeedDumpFunction * r.horizontalSpeedDumpFunction / r.angularSpeedDumpFunction) / r.angularSpeedDumpFunction
-                                )
-                                - _horizontalLiftIntegralDerivative(
-                                    r.Iw, 1 / r.angularSpeedDumpFunction,
-                                    rdv.Iw, -rdv.angularSpeedDumpFunction / (r.angularSpeedDumpFunction * r.angularSpeedDumpFunction)
-                                );
-                            rdv.horizontalLiftIntegral = (horizontalLiftIntegralDividendDerivative - rdv.horizontalSpeedDumpCoeff * r.horizontalLiftIntegral) / r.horizontalSpeedDumpCoeff;
+                            var verticalLiftIntegralDividendDerivative = rdv.angularSpeedDumpInverseIntegral - rdv.horizontalSpeedDumpInverseIntegral;
+                            var verticalLiftIntegralDivisorDerivative = rdv.horizontalSpeedDumpCoeff - rdv.angularSpeedDumpCoeff;
+                            rdv.verticalLiftIntegral = (verticalLiftIntegralDividendDerivative - verticalLiftIntegralDivisorDerivative * r.verticalLiftIntegral) / verticalLiftIntegralDivisor;
+                            var gravityIntegralDividendDerivative = rdv.horizontalSpeedDumpFunction * r.horizontalSpeedDumpFunction + r.horizontalSpeedDumpFunction * rdv.horizontalSpeedDumpFunction
+                                                                  - 2 * (rdv.horizontalSpeedDumpCoeff * r.horizontalSpeedDumpInverseIntegral + r.horizontalSpeedDumpCoeff * rdv.horizontalSpeedDumpInverseIntegral);
+                            var gravityIntegralDivisorDerivative = 8 * r.horizontalSpeedDumpCoeff * rdv.horizontalSpeedDumpCoeff;
+                            rdv.gravityIntegral = (gravityIntegralDividendDerivative - gravityIntegralDivisorDerivative * r.gravityIntegral) / gravityIntegralDivisor;
+                            rdv.verticalPosition += rdv.verticalLiftIntegral * r.verticalLiftForce + r.verticalLiftIntegral * rdv.verticalLiftForce + rdv.gravityIntegral * GravityForce;
                         }
                     }
                 }
-                // int V_h dt = rotate(V_h0 |R_h|, arg R_h)
-                r.horizontalSpeedIntegral = (r.speedProjection.Horizontal * r.horizontalLiftIntegral.Length).RotateYaw(r.horizontalLiftIntegral.Arg);
+            }
+
+            if (components.HasFlag(Component.HorizontalPosition))
+            {
+                // int V_h dt
+                if (r.horizontalSpeedDumpCoeff == 0)
+                {
+                    // V_h = 0
+                    r.horizontalSpeedIntegral = Point3D.Empty;
+                    if (derivatives != null)
+                    {
+                        for (var i = 0; i < varsCount; i++)
+                        {
+                            var rdv = resultDerivatives[i];
+
+                            rdv.horizontalSpeedIntegral = Point3D.Empty;
+                        }
+                    }
+                }
+                else
+                {
+                    // R_h = int (e^iA_h / fh) dt
+                    if (r.angularSpeedDumpCoeff == 0)
+                    {
+                        // R_h = lh
+                        r.horizontalLiftIntegral = r.horizontalSpeedDumpInverseIntegral;
+                        if (derivatives != null)
+                        {
+                            for (var i = 0; i < varsCount; i++)
+                            {
+                                var rdv = resultDerivatives[i];
+
+                                rdv.horizontalLiftIntegral = rdv.horizontalSpeedDumpInverseIntegral;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // I_0 = L W_v0
+                        r.I0 = Constants.BallLiftCoeff * r.angularSpeedProjection.Vertical.Y;
+                        // I_wh = I_0 / (kw - kh)
+                        r.Iwh = r.I0 / (r.angularSpeedDumpCoeff - r.horizontalSpeedDumpCoeff);
+                        // I_w = I_0 / kw
+                        r.Iw = r.I0 / r.angularSpeedDumpCoeff;
+                        // x(j, f) = e^ij * (Ei(-ijf) - Ei(-ij))
+                        // R_h = (x(I_wh, fh / fw) - x(I_w, 1 / fw)) / kh
+                        var horizontalLiftIntegralDividend = _horizontalLiftIntegral(r.Iwh, r.horizontalSpeedDumpFunction / r.angularSpeedDumpFunction) - _horizontalLiftIntegral(r.Iw, 1 / r.angularSpeedDumpFunction);
+                        r.horizontalLiftIntegral = horizontalLiftIntegralDividend / r.horizontalSpeedDumpCoeff;
+                        if (derivatives != null)
+                        {
+                            for (var i = 0; i < varsCount; i++)
+                            {
+                                var rdv = resultDerivatives[i];
+
+                                rdv.I0 = Constants.BallLiftCoeff * rdv.angularSpeedProjection.Vertical.Y;
+                                rdv.Iwh = (rdv.I0 - (rdv.angularSpeedDumpCoeff - rdv.horizontalSpeedDumpCoeff) * r.Iwh) / (r.angularSpeedDumpCoeff - r.horizontalSpeedDumpCoeff);
+                                rdv.Iw = (rdv.I0 - rdv.angularSpeedDumpCoeff * r.Iw) / r.angularSpeedDumpCoeff;
+                                var horizontalLiftIntegralDividendDerivative = _horizontalLiftIntegralDerivative(
+                                        r.Iwh, r.horizontalSpeedDumpFunction / r.angularSpeedDumpFunction,
+                                        rdv.Iwh, (rdv.horizontalSpeedDumpFunction - rdv.angularSpeedDumpFunction * r.horizontalSpeedDumpFunction / r.angularSpeedDumpFunction) / r.angularSpeedDumpFunction
+                                    )
+                                    - _horizontalLiftIntegralDerivative(
+                                        r.Iw, 1 / r.angularSpeedDumpFunction,
+                                        rdv.Iw, -rdv.angularSpeedDumpFunction / (r.angularSpeedDumpFunction * r.angularSpeedDumpFunction)
+                                    );
+                                rdv.horizontalLiftIntegral = (horizontalLiftIntegralDividendDerivative - rdv.horizontalSpeedDumpCoeff * r.horizontalLiftIntegral) / r.horizontalSpeedDumpCoeff;
+                            }
+                        }
+                    }
+                    // int V_h dt = rotate(V_h0 |R_h|, arg R_h)
+                    r.horizontalSpeedIntegral = (r.speedProjection.Horizontal * r.horizontalLiftIntegral.Length).RotateYaw(r.horizontalLiftIntegral.Arg);
+                    if (derivatives != null)
+                    {
+                        for (var i = 0; i < varsCount; i++)
+                        {
+                            var rdv = resultDerivatives[i];
+
+                            rdv.horizontalSpeedIntegral = (r.speedProjection.Horizontal * r.horizontalLiftIntegral.Length).GetRotateYawDerivative(
+                                r.horizontalLiftIntegral.Arg,
+                                rdv.speedProjection.Horizontal * r.horizontalLiftIntegral.Length + r.speedProjection.Horizontal * r.horizontalLiftIntegral.GetLengthDerivative(rdv.horizontalLiftIntegral),
+                                r.horizontalLiftIntegral.GetArgDerivative(rdv.horizontalLiftIntegral)
+                            );
+                        }
+                    }
+                }
+                // P_h = P_h0 + int V_h dt
+                r.horizontalPosition = r.positionProjection.Horizontal + r.horizontalSpeedIntegral;
                 if (derivatives != null)
                 {
                     for (var i = 0; i < varsCount; i++)
                     {
                         var rdv = resultDerivatives[i];
 
-                        rdv.horizontalSpeedIntegral = (r.speedProjection.Horizontal * r.horizontalLiftIntegral.Length).GetRotateYawDerivative(
-                            r.horizontalLiftIntegral.Arg,
-                            rdv.speedProjection.Horizontal * r.horizontalLiftIntegral.Length + r.speedProjection.Horizontal * r.horizontalLiftIntegral.GetLengthDerivative(rdv.horizontalLiftIntegral),
-                            r.horizontalLiftIntegral.GetArgDerivative(rdv.horizontalLiftIntegral)
-                        );
+                        rdv.horizontalPosition = rdv.positionProjection.Horizontal + rdv.horizontalSpeedIntegral;
                     }
                 }
             }
-            // P_h = P_h0 + int V_h dt
-            r.horizontalPosition = r.positionProjection.Horizontal + r.horizontalSpeedIntegral;
-            if (derivatives != null)
-            {
-                for (var i = 0; i < varsCount; i++)
-                {
-                    var rdv = resultDerivatives[i];
 
-                    rdv.horizontalPosition = rdv.positionProjection.Horizontal + rdv.horizontalSpeedIntegral;
+            if (components.HasFlag(Component.HorizontalPosition) || components.HasFlag(Component.VerticalPosition))
+            {
+                r.Position = r.horizontalPosition + r.verticalPosition;
+                if (derivatives != null)
+                {
+                    for (var i = 0; i < varsCount; i++)
+                    {
+                        var rdv = resultDerivatives[i];
+
+                        rdv.Position = rdv.horizontalPosition + rdv.verticalPosition;
+                    }
                 }
             }
 
-            r.Position = r.horizontalPosition + r.verticalPosition;
             if (derivatives != null)
             {
                 for (var i = 0; i < varsCount; i++)
                 {
                     var rdv = resultDerivatives[i];
-
-                    rdv.Position = rdv.horizontalPosition + rdv.verticalPosition;
 
                     outDerivatives.RelativeBallStateDv[i] = new Ball()
                     {
