@@ -17,7 +17,20 @@ namespace Magnus
 
         public World()
         {
-            State = new State();
+            State = new State()
+            {
+                Ball = new Ball(),
+                Players = new Player[2],
+                Time = 0,
+                HitSide = Misc.Rnd(0, 1) < 0.5 ? Constants.LeftPlayerIndex : Constants.RightPlayerIndex
+            };
+            State.UpdateNextServeX();
+            for (var playerIndex = 0; playerIndex <= 1; playerIndex++)
+            {
+                State.Players[playerIndex] = new Player(playerIndex);
+                State.Players[playerIndex].ResetPosition(State.NextServeX + Constants.NetHeight, true);
+            }
+            State.Reset();
 
             TimeCoeff = 4;
 
@@ -50,9 +63,14 @@ namespace Magnus
         private double doTimeStep()
         {
             var newTime = DateTime.Now;
-            var dt = (newTime - time).TotalSeconds * Constants.TimeUnit * TimeCoeff / DefaultTimeCoeff;
+            var dt = (newTime - time).TotalSeconds;
+            if (dt > 3)
+            {
+                // Too long frame (probably because of debugging) - skip
+                dt = 0;
+            }
             time = newTime;
-            return dt;
+            return dt * Constants.TimeUnit * TimeCoeff / DefaultTimeCoeff;
         }
 
         private void findPlayerHits()

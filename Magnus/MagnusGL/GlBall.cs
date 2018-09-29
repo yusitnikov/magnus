@@ -1,7 +1,6 @@
 ﻿using Mathematics.Math3D;
 using System;
 using System.Drawing;
-using System.Linq;
 
 namespace Magnus.MagnusGL
 {
@@ -14,7 +13,11 @@ namespace Magnus.MagnusGL
             for (var i = 0; i <= circlesCount; i++)
             {
                 var a = Math.PI * i / circlesCount;
-                GlIndexedVertex[] circle2 = getCirclePoints(radius * Math.Sin(a), circlePointsCount).Select(p => new GlIndexedVertex(center + radius * Math.Cos(a) * Point3D.XAxis + p, nextVertexIndex)).ToArray();
+                GlIndexedVertex[] circle2 = getCirclePoints(radius * Math.Sin(a), circlePointsCount);
+                foreach (var v in circle2)
+                {
+                    v.Position += center + radius * Math.Cos(a) * Point3D.XAxis;
+                }
                 if (circle1 != null)
                 {
                     addCylinder(color, circle1, circle2);

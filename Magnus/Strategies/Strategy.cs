@@ -2,41 +2,69 @@
 {
     public class Strategy
     {
-        public virtual double GetBackHitTime(double timeTillMaxHeight, double timeTillFall)
+        public virtual double GetMinBackHitTime(double timeTillMaxHeight, double timeTillFall)
         {
-            return timeTillFall * Misc.Rnd(0.2, 0.8);
+            return timeTillFall * 0.2;
+        }
+        public virtual double GetMaxBackHitTime(double timeTillMaxHeight, double timeTillFall)
+        {
+            return timeTillFall * 0.8;
         }
 
-        public virtual double GetAttackAngle()
+        public virtual double GetMinAttackAngle()
         {
-            return Misc.FromDegrees(Misc.Rnd(-30, 60));
+            return Misc.FromDegrees(-30);
+        }
+        public virtual double GetMaxAttackAngle()
+        {
+            return Misc.FromDegrees(60);
         }
 
-        public virtual double GetVelocityAttackAngle()
+        public virtual double GetMinVelocityAttackAngle()
         {
-            return Misc.FromDegrees(Misc.Rnd(-90, 90));
+            return Misc.FromDegrees(-90);
+        }
+        public virtual double GetMaxVelocityAttackAngle()
+        {
+            return Misc.FromDegrees(90);
         }
 
-        public virtual double GetHitSpeed()
+        public virtual double GetMinHitSpeed()
         {
-            return Misc.Rnd(0, 1);
+            return 0;
+        }
+        public virtual double GetMaxHitSpeed()
+        {
+            return 1;
         }
 
-        public virtual double GetServeHitSpeed(double ballX)
+        public virtual double GetMinServeHitSpeed(double ballX)
         {
-            //return Misc.Rnd(0, 0.5) * ballX / Constants.HalfTableLength;
-            return Misc.Rnd(0.2, 0.7) * ballX / Constants.HalfTableLength;
+            //return 0;
+            return 0.2 * ballX / Constants.HalfTableLength;
+        }
+        public virtual double GetMaxServeHitSpeed(double ballX)
+        {
+            //return 0.5 * ballX / Constants.HalfTableLength;
+            return 0.7 * ballX / Constants.HalfTableLength;
         }
 
-        public virtual double GetServeAttackAngle()
+        public virtual double GetMinServeAttackAngle()
         {
-            return Misc.FromDegrees(Misc.Rnd(20, 100));
+            return Misc.FromDegrees(20);
+        }
+        public virtual double GetMaxServeAttackAngle()
+        {
+            return Misc.FromDegrees(100);
         }
 
-        public virtual double GetServeVelocityAttackAngle()
+        public virtual double GetMinServeVelocityAttackAngle()
         {
-            var rnd = Misc.Rnd(-1, 1);
-            return Misc.FromDegrees(90 + 60 * rnd * rnd * rnd);
+            return Misc.FromDegrees(30);
+        }
+        public virtual double GetMaxServeVelocityAttackAngle()
+        {
+            return Misc.FromDegrees(150);
         }
 
         public override string ToString()

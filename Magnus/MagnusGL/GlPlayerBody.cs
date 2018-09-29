@@ -1,6 +1,5 @@
 ﻿using Mathematics.Math3D;
 using System.Drawing;
-using System.Linq;
 
 namespace Magnus.MagnusGL
 {
@@ -10,9 +9,14 @@ namespace Magnus.MagnusGL
         {
             var blackPoints = getBatPoints(player, 1);
             var redPoints = getBatPoints(player, -1);
+            var redPointsReversed = new GlIndexedVertex[redPoints.Length];
+            for (var i = 0; i < redPoints.Length; i++)
+            {
+                redPointsReversed[i] = redPoints[redPoints.Length - 1 - i];
+            }
 
             addPolygon(Color.Black, blackPoints);
-            addPolygon(Color.Red, redPoints.Reverse().ToArray());
+            addPolygon(Color.Red, redPointsReversed);
             addCylinder(getWoodColor(player), redPoints, blackPoints);
 
             addShadow();
@@ -20,7 +24,12 @@ namespace Magnus.MagnusGL
 
         private GlIndexedVertex[] getBatPoints(Player player, int sign)
         {
-            return getCirclePoints(1).Select(point => new GlIndexedVertex(player.TranslatePointFromBatCoords(new Point3D(point.Y * Constants.BatRadius, sign * Constants.BatThickness / 2, point.Z * Constants.BatBiggerRadius)), nextVertexIndex)).ToArray();
+            var result = getCirclePoints(1);
+            foreach (var v in result)
+            {
+                v.Position = player.TranslatePointFromBatCoords(new Point3D(v.Position.Y * Constants.BatRadius, sign * Constants.BatThickness / 2, v.Position.Z * Constants.BatBiggerRadius));
+            }
+            return result;
         }
     }
 }

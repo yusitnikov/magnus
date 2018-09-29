@@ -2,24 +2,31 @@
 {
     class BackSpinner : Strategy
     {
-        public override double GetBackHitTime(double timeTillMaxHeight, double timeTillFall)
+        public override double GetMinBackHitTime(double timeTillMaxHeight, double timeTillFall)
         {
-            return timeTillMaxHeight + (timeTillFall - timeTillMaxHeight) * Misc.Rnd(0, 0.8);
+            return timeTillMaxHeight;
+        }
+        public override double GetMaxBackHitTime(double timeTillMaxHeight, double timeTillFall)
+        {
+            return timeTillMaxHeight + (timeTillFall - timeTillMaxHeight) * 0.8;
         }
 
-        public override double GetAttackAngle()
+        public override double GetMinAttackAngle()
         {
-            return Misc.FromDegrees(Misc.Rnd(-40, 30));
+            return Misc.FromDegrees(-40);
+        }
+        public override double GetMaxAttackAngle()
+        {
+            return Misc.FromDegrees(30);
         }
 
-        public override double GetVelocityAttackAngle()
+        public override double GetMinVelocityAttackAngle()
         {
-            return Misc.FromDegrees(Misc.Rnd(70, 90));
+            return Misc.FromDegrees(70);
         }
-
-        public override double GetHitSpeed()
+        public override double GetMaxVelocityAttackAngle()
         {
-            return Misc.Rnd(0, 1);
+            return Misc.FromDegrees(90);
         }
     }
 }

@@ -5,8 +5,8 @@ namespace Magnus
 {
     class Aim
     {
-        private readonly Player aimPlayer, aimPlayer0;
-        private readonly double aimT, aimT0;
+        public readonly Player AimPlayer, AimPlayer0;
+        public readonly double AimT, AimT0;
 
         private readonly double hitSpeed, forceToHit, timeToHit;
 
@@ -15,14 +15,12 @@ namespace Magnus
 
         public readonly bool HasTimeToReact;
 
-        public double AimX => aimPlayer.Position.X;
-
         public Aim(Player aimPlayer, Player aimPlayer0, double aimT, double aimT0)
         {
-            this.aimPlayer = aimPlayer.Clone();
-            this.aimPlayer0 = aimPlayer0.Clone();
-            this.aimT = aimT;
-            this.aimT0 = aimT0;
+            AimPlayer = aimPlayer.Clone();
+            AimPlayer0 = aimPlayer0.Clone();
+            AimT = aimT;
+            AimT0 = aimT0;
 
             hitSpeed = aimPlayer.Speed.Length;
             if (hitSpeed == 0)
@@ -49,12 +47,12 @@ namespace Magnus
 
         private Point3D getHitPosition(double t)
         {
-            return aimPlayer.Position + aimPlayer.Speed * t - aimPlayer.Speed.Normal * (forceToHit * t * Math.Abs(t) / 2);
+            return AimPlayer.Position + AimPlayer.Speed * t - AimPlayer.Speed.Normal * (forceToHit * t * Math.Abs(t) / 2);
         }
 
         public bool UpdatePlayerPosition(State s, Player p)
         {
-            double timeFromState = s.Time - aimT;
+            double timeFromState = s.Time - AimT;
 
             if (timeFromState > timeToHit)
             {
@@ -64,12 +62,12 @@ namespace Magnus
             if (timeFromState > -timeToHit)
             {
                 p.Position = getHitPosition(timeFromState);
-                p.AnglePitch = aimPlayer.AnglePitch;
-                p.AngleYaw = aimPlayer.AngleYaw;
+                p.AnglePitch = AimPlayer.AnglePitch;
+                p.AngleYaw = AimPlayer.AngleYaw;
             }
             else
             {
-                double timeFromState0 = s.Time - aimT0;
+                double timeFromState0 = s.Time - AimT0;
 
                 double currentMoveLength;
                 if (timeFromState0 <= timeToForceMove)
@@ -99,10 +97,10 @@ namespace Magnus
                     }
                 }
 
-                p.Position = aimPlayer0.Position + currentMoveLength * moveVector.Normal;
-                var angleCoeff = Math.Min((s.Time - aimT0) / timeToMove, 1);
-                p.AnglePitch = aimPlayer0.AnglePitch + Misc.NormalizeAngle(aimPlayer.AnglePitch - aimPlayer0.AnglePitch) * angleCoeff;
-                p.AngleYaw = aimPlayer0.AngleYaw + Misc.NormalizeAngle(aimPlayer.AngleYaw - aimPlayer0.AngleYaw) * angleCoeff;
+                p.Position = AimPlayer0.Position + currentMoveLength * moveVector.Normal;
+                var angleCoeff = Math.Min((s.Time - AimT0) / timeToMove, 1);
+                p.AnglePitch = AimPlayer0.AnglePitch + Misc.NormalizeAngle(AimPlayer.AnglePitch - AimPlayer0.AnglePitch) * angleCoeff;
+                p.AngleYaw = AimPlayer0.AngleYaw + Misc.NormalizeAngle(AimPlayer.AngleYaw - AimPlayer0.AngleYaw) * angleCoeff;
             }
 
             return true;

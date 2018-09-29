@@ -19,21 +19,6 @@ namespace Magnus
 
         public State()
         {
-            Ball = new Ball()
-            {
-                MarkPoint = Point3D.XAxis
-            };
-            UpdateNextServeX();
-            Players = new Player[2];
-            for (var playerIndex = 0; playerIndex <= 1; playerIndex++)
-            {
-                Players[playerIndex] = new Player(playerIndex);
-                Players[playerIndex].ResetPosition(NextServeX + Constants.NetHeight, true);
-            }
-            Time = 0;
-            HitSide = Misc.Rnd(0, 1) < 0.5 ? Constants.LeftPlayerIndex : Constants.RightPlayerIndex;
-
-            Reset();
         }
 
         private State(State other, bool copyPlayers = true)
@@ -57,7 +42,7 @@ namespace Magnus
             Players[HitSide].RequestAim();
         }
 
-        private Event doStep(State relativeState, BallExpression simplifiedTrajectory, Variable t, double dt, bool useBat, bool updateBat = false)
+        private Event doStep(bool useBat, bool updateBat = false, State relativeState = null, Variable t = null, double dt = Constants.SimulationFrameTime)
         {
             var events = Event.None;
 
@@ -72,24 +57,14 @@ namespace Magnus
 
             if (relativeState != null)
             {
-                if (Simulation.UseBinarySearch)
-                {
-                    t.Value = Time - relativeState.Time;
-                    Ball.AngularSpeed = simplifiedTrajectory.AngularSpeed.Evaluate();
-                    Ball.Position = simplifiedTrajectory.Position.Evaluate();
-                    Ball.Speed = simplifiedTrajectory.Speed.Evaluate();
-                }
-                else
-                {
-                    Ball.DoStepSimplified(relativeState.Ball, Time - relativeState.Time);
-                }
+                Ball = Ball.DoStepSimplified(relativeState.Ball, Time - relativeState.Time);
             }
             else
             {
-                Ball.DoStep(dt, false);
+                Ball.DoStep(dt);
             }
 
-            events |= checkForHits(prevBallState, relativeState != null);
+            events |= CheckForHits(prevBallState, relativeState != null);
 
             if (Ball.Side != prevBallState.Side)
             {
@@ -109,6 +84,33 @@ namespace Magnus
             return events;
         }
 
+        public void ProcessBatHit(Player player)
+        {
+            var batSide = Point3D.ScalarMult(Ball.Speed, player.Normal) <= 0 ? 1 : -1;
+            Ball.ProcessHit(player, Constants.BallHitHorizontalCoeff, Constants.BallHitVerticalCoeff, batSide);
+
+            if (GameState != GameState.Failed)
+            {
+                if (player.Index != HitSide || GameState.IsOneOf(GameState.NotReadyToHit))
+                {
+                    endSet(false);
+                }
+                else
+                {
+                    HitSide = Misc.GetOtherPlayerIndex(player.Index);
+                    switch (GameState)
+                    {
+                        case GameState.Serving:
+                            GameState = GameState.Served;
+                            break;
+                        case GameState.FlyingToBat:
+                            GameState = GameState.FlyingToTable;
+                            break;
+                    }
+                }
+            }
+        }
+
         private Event doPlayerStep(double dt, bool updateBat = false)
         {
             var events = Event.None;
@@ -125,30 +127,7 @@ namespace Magnus
                 {
                     events |= Event.BatHit;
                     events |= player.Index == Constants.RightPlayerIndex ? Event.RightBatHit : Event.LeftBatHit;
-
-                    var batSide = Point3D.ScalarMult(ballInBatSystem.Speed.Vertical, player.Normal) <= 0 ? 1 : -1;
-                    Ball.ProcessHit(player, Constants.BallHitHorizontalCoeff, Constants.BallHitVerticalCoeff, batSide);
-
-                    if (GameState != GameState.Failed)
-                    {
-                        if (player.Index != HitSide || GameState.IsOneOf(GameState.NotReadyToHit))
-                        {
-                            endSet(false);
-                        }
-                        else
-                        {
-                            HitSide = Misc.GetOtherPlayerIndex(player.Index);
-                            switch (GameState)
-                            {
-                                case GameState.Serving:
-                                    GameState = GameState.Served;
-                                    break;
-                                case GameState.FlyingToBat:
-                                    GameState = GameState.FlyingToTable;
-                                    break;
-                            }
-                        }
-                    }
+                    ProcessBatHit(player);
                 }
             }
 
@@ -176,7 +155,53 @@ namespace Magnus
             }
         }
 
-        private Event checkForHits(Ball prevBallState, bool closerToFail = false)
+        public bool IsHittingTableSimplified(bool closerToFail = false)
+        {
+            return IsHittingTableSimplified(Ball.Position, closerToFail);
+        }
+
+        public bool IsHittingTableSimplified(Point3D ballPosition, bool closerToFail = false)
+        {
+            var tableEndMargin = closerToFail ? -Constants.SimulationBordersMargin : Constants.BallRadius;
+            return Math.Abs(ballPosition.X) < Constants.HalfTableLength + tableEndMargin
+                && Math.Abs(ballPosition.Z) < Constants.HalfTableWidth + tableEndMargin;
+        }
+
+        public void ProcessTableHit()
+        {
+            Ball.ProcessHit(Surface.Horizontal, Constants.TableHitHorizontalCoeff, Constants.TableHitVerticalCoeff);
+
+            var isHitSide = Ball.Side == Misc.GetPlayerSideByIndex(HitSide);
+            switch (GameState)
+            {
+                case GameState.Serving:
+                case GameState.FlyingToBat:
+                    endSet(false);
+                    break;
+                case GameState.Served:
+                    if (isHitSide)
+                    {
+                        endSet(true);
+                    }
+                    else
+                    {
+                        GameState = GameState.FlyingToTable;
+                    }
+                    break;
+                case GameState.FlyingToTable:
+                    if (isHitSide)
+                    {
+                        GameState = GameState.FlyingToBat;
+                    }
+                    else
+                    {
+                        endSet(true);
+                    }
+                    break;
+            }
+        }
+
+        public Event CheckForHits(Ball prevBallState, bool closerToFail = false)
         {
             Event events = 0;
 
@@ -191,52 +216,19 @@ namespace Magnus
                 endSet(GameState.IsOneOf(GameState.NotReadyToHit));
             }
 
-            var tableEndMargin = closerToFail ? Constants.SimulationBordersMargin * Math.Sign(Ball.Speed.Y) : Constants.BallRadius;
-            var tableEndX = Constants.HalfTableLength + tableEndMargin;
-            var tableEndZ = Constants.HalfTableWidth + tableEndMargin;
             var verticalSpeedSign = Math.Sign(Ball.Speed.Y);
             if (
+                IsHittingTableSimplified(closerToFail) &&
                 verticalSpeedSign != 0 &&
                 Ball.Position.Y * verticalSpeedSign > -Constants.BallRadius &&
-                prevBallState.Position.Y * verticalSpeedSign <= -Constants.BallRadius &&
-                Math.Abs(Ball.Position.X) < tableEndX &&
-                Math.Abs(Ball.Position.Z) < tableEndZ
+                prevBallState.Position.Y * verticalSpeedSign <= -Constants.BallRadius
             )
             {
                 if (Ball.Speed.Y < 0)
                 {
                     events |= Event.TableHit;
 
-                    Ball.ProcessHit(Surface.Horizontal, Constants.TableHitHorizontalCoeff, Constants.TableHitVerticalCoeff);
-
-                    var isHitSide = Ball.Side == Misc.GetPlayerSideByIndex(HitSide);
-                    switch (GameState)
-                    {
-                        case GameState.Serving:
-                        case GameState.FlyingToBat:
-                            endSet(false);
-                            break;
-                        case GameState.Served:
-                            if (isHitSide)
-                            {
-                                endSet(true);
-                            }
-                            else
-                            {
-                                GameState = GameState.FlyingToTable;
-                            }
-                            break;
-                        case GameState.FlyingToTable:
-                            if (isHitSide)
-                            {
-                                GameState = GameState.FlyingToBat;
-                            }
-                            else
-                            {
-                                endSet(true);
-                            }
-                            break;
-                    }
+                    ProcessTableHit();
                 }
                 else
                 {
@@ -251,14 +243,29 @@ namespace Magnus
             return events;
         }
 
-        public Event DoStep(bool useBat = false, State relativeState = null, BallExpression simplifiedTrajectory = null, Variable t = null, double dt = Constants.SimulationFrameTime)
+        public bool CheckForTableHitSimplified(bool closerToFail = false)
         {
-            return doStep(relativeState, simplifiedTrajectory, t, dt, useBat);
+            bool hitting = IsHittingTableSimplified(closerToFail);
+            if (hitting)
+            {
+                ProcessTableHit();
+            }
+            return hitting;
+        }
+
+        public Event DoStep()
+        {
+            return doStep(false);
+        }
+
+        public Event DoSimplifiedStep(State relativeState, Variable t, double dt = Constants.SimulationFrameTime)
+        {
+            return doStep(false, false, relativeState, t, dt);
         }
 
         public Event DoStepWithBatUpdate()
         {
-            return doStep(null, null, null, Constants.SimulationFrameTime, true, true);
+            return doStep(true, true);
         }
 
         public bool DoStepsUntilGameState(GameState gameStates)

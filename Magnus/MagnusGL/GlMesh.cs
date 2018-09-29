@@ -49,12 +49,12 @@ namespace Magnus.MagnusGL
             Profiler.Instance.LogEvent("mesh: add shadow");
         }
 
-        protected Point3D[] getCirclePoints(double radius, int circlePointsCount = DefaultCirclePointsCount)
+        protected GlIndexedVertex[] getCirclePoints(double radius, int circlePointsCount = DefaultCirclePointsCount)
         {
-            var points = new Point3D[circlePointsCount];
+            var points = new GlIndexedVertex[circlePointsCount];
             for (var i = 0; i < circlePointsCount; i++)
             {
-                points[i] = radius * Point3D.YAxis.RotateRoll(2 * Math.PI * i / circlePointsCount);
+                points[i] = new GlIndexedVertex(radius * Point3D.YAxis.RotateRoll(2 * Math.PI * i / circlePointsCount), nextVertexIndex);
             }
             return points;
         }

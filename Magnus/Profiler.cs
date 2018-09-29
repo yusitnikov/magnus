@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace Magnus
 {
@@ -14,8 +13,22 @@ namespace Magnus
         private Dictionary<string, double> prevStats = new Dictionary<string, double>(), currentStats = new Dictionary<string, double>();
 
         public int FPS => prevFrames;
-        public IEnumerable<KeyValuePair<string, double>> TotalStats => prevStats;
-        public IEnumerable<KeyValuePair<string, double>> AverageStats => prevFrames == 0 ? new KeyValuePair<string, double>[0] : TotalStats.Select(pair => new KeyValuePair<string, double>(pair.Key, pair.Value / prevFrames));
+        public Dictionary<string, double> TotalStats => prevStats;
+        public Dictionary<string, double> AverageStats
+        {
+            get
+            {
+                var result = new Dictionary<string, double>();
+                if (prevFrames != 0)
+                {
+                    foreach (var pair in TotalStats)
+                    {
+                        result[pair.Key] = pair.Value / prevFrames;
+                    }
+                }
+                return result;
+            }
+        }
 
         private Profiler()
         {

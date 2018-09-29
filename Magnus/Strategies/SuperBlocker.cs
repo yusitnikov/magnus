@@ -2,9 +2,13 @@
 {
     class SuperBlocker : Strategy
     {
-        public override double GetBackHitTime(double timeTillMaxHeight, double timeTillFall)
+        public override double GetMinBackHitTime(double timeTillMaxHeight, double timeTillFall)
         {
-            return timeTillMaxHeight * Misc.Rnd(0.2, 0.4);
+            return timeTillMaxHeight * 0.2;
+        }
+        public override double GetMaxBackHitTime(double timeTillMaxHeight, double timeTillFall)
+        {
+            return timeTillMaxHeight * 0.4;
         }
     }
 }

@@ -52,6 +52,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Aim.cs" />
+    <Compile Include="ASurfaceExpression.cs" />
     <Compile Include="ASurface.cs" />
     <Compile Include="BallExpression.cs" />
     <Compile Include="Ball.cs" />
@@ -60,6 +61,7 @@
     <Compile Include="EventExtension.cs" />
     <Compile Include="Event.cs" />
     <Compile Include="GameState.cs" />
+    <Compile Include="HitSearcher.cs" />
     <Compile Include="MagnusGL\GlArrayBuffer.cs" />
     <Compile Include="MagnusGL\GlBall.cs" />
     <Compile Include="MagnusGL\GlCube.cs" />
@@ -73,6 +75,7 @@
     <Compile Include="MagnusGL\GlTriangleEdge.cs" />
     <Compile Include="MagnusGL\GlNormalizedVertex.cs" />
     <Compile Include="Misc.cs" />
+    <Compile Include="PlayerExpression.cs" />
     <Compile Include="Player.cs" />
     <Compile Include="Profiler.cs" />
     <Compile Include="Simulation.cs" />

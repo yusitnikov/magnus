@@ -2,19 +2,27 @@
 {
     class Passive : Strategy
     {
-        public override double GetBackHitTime(double timeTillMaxHeight, double timeTillFall)
+        public override double GetMinBackHitTime(double timeTillMaxHeight, double timeTillFall)
         {
-            return timeTillFall * Misc.Rnd(0.5, 0.8);
+            return timeTillFall * 0.5;
+        }
+        public override double GetMaxBackHitTime(double timeTillMaxHeight, double timeTillFall)
+        {
+            return timeTillFall * 0.8;
         }
 
-        public override double GetAttackAngle()
+        public override double GetMinAttackAngle()
         {
-            return Misc.FromDegrees(Misc.Rnd(-20, 40, true));
+            return Misc.FromDegrees(-20);
+        }
+        public override double GetMaxAttackAngle()
+        {
+            return Misc.FromDegrees(40);
         }
 
-        public override double GetHitSpeed()
+        public override double GetMaxHitSpeed()
         {
-            return Misc.Rnd(0, 0.5);
+            return 0.5;
         }
     }
 }
