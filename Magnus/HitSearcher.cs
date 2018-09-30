@@ -15,6 +15,7 @@ namespace Magnus
         const double maxHeightAimMedian = netCrossYAimMedian;
         const double maxHeightAimCoeff = netCrossYAimCoeff;
 
+        private bool isServing;
         private int playerSide;
         private BallExpression initialBallExpression;
         private BallExpression[] initialBallExpressionDerivatives;
@@ -22,12 +23,14 @@ namespace Magnus
         private int optimizationVariablesCount;
         private VariableLimitation[] optimizationLimitations;
 
-        private Ball initialBallState;
-        private double tableHitTime, netCrossTime, maxHeightTime;
-        private double tableHitX, tableHitZ, netCrossY, maxHeight;
+        private Ball initialBallState, ballAtTableHitTime;
+        private Ball.SimplifiedStepDerivatives initialBallDerivatives, ballDerivativesAtTableHitTime;
+        private double serveTableHitTime, tableHitTime, netCrossTime, maxHeightTime;
+        private double serveTableHitX, serveTableHitZ, tableHitX, tableHitZ, netCrossY, maxHeight;
 
-        public HitSearcher(int playerSide, BallExpression initialBallExpression, Variable[] optimizationVariables, VariableLimitation[] optimizationLimitations)
+        public HitSearcher(bool isServing, int playerSide, BallExpression initialBallExpression, Variable[] optimizationVariables, VariableLimitation[] optimizationLimitations)
         {
+            this.isServing = isServing;
             this.playerSide = playerSide;
             this.initialBallExpression = initialBallExpression;
             optimizationVariablesCount = optimizationVariables.Length;
@@ -59,12 +62,17 @@ namespace Magnus
                 }
 
                 var done = true;
-                if (tableHitX <= 0)
+                if (tableHitX <= 0 || isServing && serveTableHitX <= 0)
                 {
                     done = false;
                 }
                 else
                 {
+                    if (isServing && serveTableHitX > Constants.HalfTableLength - Constants.SimulationBordersMargin / 3)
+                    {
+                        done = false;
+                    }
+
                     var verticalLiftForce = Point3D.VectorMult(initialBallState.Speed, initialBallState.AngularSpeed).Y;
                     if (
                         tableHitX > Constants.HalfTableLength - Constants.SimulationBordersMargin ||
@@ -84,6 +92,11 @@ namespace Magnus
                     {
                         done = false;
                     }
+                }
+
+                if (isServing && Math.Abs(serveTableHitZ) > Constants.HalfTableWidth - Constants.SimulationBordersMargin)
+                {
+                    done = false;
                 }
 
                 if (Math.Abs(tableHitZ) > Constants.HalfTableWidth - Constants.SimulationBordersMargin)
@@ -135,7 +148,7 @@ namespace Magnus
 
             var cacheGeneration = Expression.NextAutoIncrementId;
             initialBallState = initialBallExpression.Evaluate(cacheGeneration);
-            var initialBallDerivatives = new Ball.SimplifiedStepDerivatives()
+            initialBallDerivatives = new Ball.SimplifiedStepDerivatives()
             {
                 VarsCount = optimizationVariablesCount,
                 RelativeBallStateDv = new Ball[optimizationVariablesCount]
@@ -146,59 +159,30 @@ namespace Magnus
             }
             #endregion
 
-            double criteriaValue, derivativeCoeff;
-
             #region tableHitPos
-            tableHitTime = BinarySearch.Search(
-                0, Constants.TimeUnit, Constants.SimplifiedSimulationFrameTime,
-                time =>
-                {
-                    var ball = Ball.DoStepSimplified(initialBallState, time, Ball.Component.VerticalSpeed | Ball.Component.VerticalPosition);
-                    return ball.Speed.Y < 0 && ball.Position.Y - Constants.BallRadius < 0;
-                },
-                time => Ball.DoStepSimplified(initialBallState, time, Ball.Component.VerticalPosition).Position.Y - Constants.BallRadius
-            );
-            if (double.IsNaN(tableHitTime))
+            if (!evaluateTableHitPos(ref result, isServing ? 1 : -1))
             {
                 return result;
             }
-            initialBallDerivatives.TDv = null;
-            var ballAtTableHitTime = Ball.DoStepSimplified(initialBallState, tableHitTime, initialBallDerivatives, out Ball.SimplifiedStepDerivatives simpleBallDerivativesAtTableHitTime, Ball.Component.VerticalSpeed | Ball.Component.Position);
-            initialBallDerivatives.TDv = new double[optimizationVariablesCount];
-            for (var i = 0; i < optimizationVariablesCount; i++)
+
+            if (isServing)
             {
-                var bdv = simpleBallDerivativesAtTableHitTime.RelativeBallStateDv[i];
-                initialBallDerivatives.TDv[i] = -bdv.Position.Y / ballAtTableHitTime.Speed.Y;
+                serveTableHitTime = tableHitTime;
+                serveTableHitX = tableHitX;
+                serveTableHitZ = tableHitZ;
+                initialBallState = ballAtTableHitTime;
+                initialBallDerivatives = ballDerivativesAtTableHitTime;
+                initialBallState.ProcessTableHit(1, initialBallDerivatives.RelativeBallStateDv);
+
+                if (!evaluateTableHitPos(ref result, -1))
+                {
+                    return result;
+                }
             }
-            Ball.DoStepSimplified(initialBallState, tableHitTime, initialBallDerivatives, out Ball.SimplifiedStepDerivatives ballDerivativesAtTableHitTime, Ball.Component.HorizontalPosition);
-
-            #region tableHitX
-            tableHitX = -playerSide * ballAtTableHitTime.Position.X;
-
-            criteriaValue = (tableHitX - tableHitXAimMedian) / tableHitXAimCoeff;
-            result.Value += criteriaValue * criteriaValue;
-            derivativeCoeff = -2 * playerSide * criteriaValue / tableHitXAimCoeff;
-            for (var i = 0; i < optimizationVariablesCount; i++)
-            {
-                result.Derivatives[i] += derivativeCoeff * ballDerivativesAtTableHitTime.RelativeBallStateDv[i].Position.X;
-            }
-            #endregion
-
-            #region tableHitZ
-            tableHitZ = ballAtTableHitTime.Position.Z;
-
-            criteriaValue = tableHitZ / tableHitZAimCoeff;
-            result.Value += criteriaValue * criteriaValue;
-            derivativeCoeff = 2 * criteriaValue / tableHitZAimCoeff;
-            for (var i = 0; i < optimizationVariablesCount; i++)
-            {
-                result.Derivatives[i] += derivativeCoeff * ballDerivativesAtTableHitTime.RelativeBallStateDv[i].Position.Z;
-            }
-            #endregion
             #endregion
 
             #region netCrossY
-            if (tableHitX <= 0)
+            if (tableHitX <= 0 || isServing && serveTableHitX <= 0)
             {
                 netCrossTime = netCrossY = 0;
             }
@@ -217,9 +201,9 @@ namespace Magnus
                 Ball.DoStepSimplified(initialBallState, netCrossTime, initialBallDerivatives, out Ball.SimplifiedStepDerivatives ballDerivativesAtNetCrossTime, Ball.Component.VerticalPosition);
                 netCrossY = ballAtNetCrossTime.Position.Y;
 
-                criteriaValue = (netCrossY - netCrossYAimMedian) / netCrossYAimCoeff;
+                var criteriaValue = (netCrossY - netCrossYAimMedian) / netCrossYAimCoeff;
                 result.Value += criteriaValue * criteriaValue;
-                derivativeCoeff = 2 * criteriaValue / netCrossYAimCoeff;
+                var derivativeCoeff = 2 * criteriaValue / netCrossYAimCoeff;
                 for (var i = 0; i < optimizationVariablesCount; i++)
                 {
                     result.Derivatives[i] += derivativeCoeff * ballDerivativesAtNetCrossTime.RelativeBallStateDv[i].Position.Y;
@@ -247,9 +231,9 @@ namespace Magnus
                 Ball.DoStepSimplified(initialBallState, maxHeightTime, initialBallDerivatives, out Ball.SimplifiedStepDerivatives ballDerivativesAtMaxHeightTime, Ball.Component.VerticalPosition);
                 maxHeight = ballAtMaxHeightTime.Position.Y;
 
-                criteriaValue = (maxHeight - maxHeightAimMedian) / maxHeightAimCoeff;
+                var criteriaValue = (maxHeight - maxHeightAimMedian) / maxHeightAimCoeff;
                 result.Value += criteriaValue * criteriaValue;
-                derivativeCoeff = 2 * criteriaValue / maxHeightAimCoeff;
+                var derivativeCoeff = 2 * criteriaValue / maxHeightAimCoeff;
                 for (var i = 0; i < optimizationVariablesCount; i++)
                 {
                     result.Derivatives[i] += derivativeCoeff * ballDerivativesAtMaxHeightTime.RelativeBallStateDv[i].Position.Y;
@@ -262,6 +246,60 @@ namespace Magnus
             #endregion
 
             return result;
+        }
+
+        private bool evaluateTableHitPos(ref GradientSearch.EvalResult result, int sideCoeff)
+        {
+            tableHitTime = BinarySearch.Search(
+                0, Constants.TimeUnit, Constants.SimplifiedSimulationFrameTime,
+                time =>
+                {
+                    var ball = Ball.DoStepSimplified(initialBallState, time, Ball.Component.VerticalSpeed | Ball.Component.VerticalPosition);
+                    return ball.Speed.Y < 0 && ball.Position.Y - Constants.BallRadius < 0;
+                },
+                time => Ball.DoStepSimplified(initialBallState, time, Ball.Component.VerticalPosition).Position.Y - Constants.BallRadius
+            );
+            if (double.IsNaN(tableHitTime))
+            {
+                return false;
+            }
+            initialBallDerivatives.TDv = null;
+            ballAtTableHitTime = Ball.DoStepSimplified(initialBallState, tableHitTime, initialBallDerivatives, out Ball.SimplifiedStepDerivatives simpleBallDerivativesAtTableHitTime, Ball.Component.All);
+            initialBallDerivatives.TDv = new double[optimizationVariablesCount];
+            for (var i = 0; i < optimizationVariablesCount; i++)
+            {
+                var bdv = simpleBallDerivativesAtTableHitTime.RelativeBallStateDv[i];
+                initialBallDerivatives.TDv[i] = -bdv.Position.Y / ballAtTableHitTime.Speed.Y;
+            }
+            Ball.DoStepSimplified(initialBallState, tableHitTime, initialBallDerivatives, out ballDerivativesAtTableHitTime, Ball.Component.All);
+
+            double criteriaValue, derivativeCoeff;
+
+            #region tableHitX
+            tableHitX = sideCoeff * playerSide * ballAtTableHitTime.Position.X;
+
+            criteriaValue = (tableHitX - tableHitXAimMedian) / tableHitXAimCoeff;
+            result.Value += criteriaValue * criteriaValue;
+            derivativeCoeff = 2 * sideCoeff * playerSide * criteriaValue / tableHitXAimCoeff;
+            for (var i = 0; i < optimizationVariablesCount; i++)
+            {
+                result.Derivatives[i] += derivativeCoeff * ballDerivativesAtTableHitTime.RelativeBallStateDv[i].Position.X;
+            }
+            #endregion
+
+            #region tableHitZ
+            tableHitZ = ballAtTableHitTime.Position.Z;
+
+            criteriaValue = tableHitZ / tableHitZAimCoeff;
+            result.Value += criteriaValue * criteriaValue;
+            derivativeCoeff = 2 * criteriaValue / tableHitZAimCoeff;
+            for (var i = 0; i < optimizationVariablesCount; i++)
+            {
+                result.Derivatives[i] += derivativeCoeff * ballDerivativesAtTableHitTime.RelativeBallStateDv[i].Position.Z;
+            }
+            #endregion
+
+            return true;
         }
     }
 }

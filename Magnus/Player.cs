@@ -250,8 +250,6 @@ namespace Magnus
                 attemptState.Time = hitTimeVar.Value = Misc.Rnd(minHitTime, maxHitTime);
                 attemptState.Ball = hitTimeBallExpression.Evaluate();
 
-                var player = state.Players[Index].Clone();
-
                 var ballReverseSpeed = -hitTimeBallExpression.Speed;
                 var reverseBallSpeedPitch = ballReverseSpeed.Pitch;
                 var reverseBallSpeedYaw = ballReverseSpeed.Yaw;
@@ -288,26 +286,23 @@ namespace Magnus
                 }
                 //maxAttackYaw = maxVelocityAttackYaw = 0.0001;
 
-                var cacheGeneration = Expression.NextAutoIncrementId;
-
                 var hitSpeedVar = new Variable("HS", Misc.Rnd(0, 1));
-                Expression hitSpeed = minHitSpeed + hitSpeedVar * (maxHitSpeed - minHitSpeed);
+                var hitSpeed = minHitSpeed + hitSpeedVar * (maxHitSpeed - minHitSpeed);
                 var attackPitchVar = new Variable("AP", Misc.Rnd(0, 1));
-                Expression attackPitch = minAttackPitch + attackPitchVar * (maxAttackPitch - minAttackPitch);
+                var attackPitch = minAttackPitch + attackPitchVar * (maxAttackPitch - minAttackPitch);
                 if (!isServing)
                 {
                     minVelocityAttackPitch = Expression.Max(minVelocityAttackPitch, attackPitch - Constants.MaxAttackAngleDifference);
                     maxVelocityAttackPitch = Expression.Min(maxVelocityAttackPitch, attackPitch + Constants.MaxAttackAngleDifference);
                 }
                 var velocityAttackPitchVar = new Variable("VAP", Misc.Rnd(0, 1));
-                Expression velocityAttackPitch = minVelocityAttackPitch + velocityAttackPitchVar * (maxVelocityAttackPitch - minVelocityAttackPitch);
+                var velocityAttackPitch = minVelocityAttackPitch + velocityAttackPitchVar * (maxVelocityAttackPitch - minVelocityAttackPitch);
                 var attackYawVar = new Variable("AY", Misc.Rnd(-1, 1));
                 var attackYaw = attackYawVar * maxAttackYaw;
                 var velocityAttackYawVar = new Variable("VAY", Misc.Rnd(-1, 1));
                 var velocityAttackYaw = velocityAttackYawVar * maxVelocityAttackYaw;
 
                 var optimizationVariables = new Variable[] { hitTimeVar, hitSpeedVar, attackPitchVar, attackYawVar, velocityAttackPitchVar, velocityAttackYawVar };
-                var optimizationVariablesCount = optimizationVariables.Length;
                 var optimizationLimitations = new VariableLimitation[]
                 {
                     new VariableLimitation() { Variable = hitTimeVar, Limit = minHitTime, Sign = -1 },
@@ -329,31 +324,16 @@ namespace Magnus
                 playerExpression.Position = hitTimeBallExpression.Position - Constants.BallRadius * playerExpression.Normal;
                 playerExpression.Speed = hitSpeed * Point3DExpression.FromAngles(reverseBallSpeedPitch + velocityAttackPitch, reverseBallSpeedYaw + attackYaw + velocityAttackYaw);
 
-                player = playerExpression.Evaluate(cacheGeneration);
-                var newAim = new Aim(player, this, hitTimeVar.Value, initialState.Time);
+                var newAim = new Aim(playerExpression.Evaluate(), this, hitTimeVar.Value, initialState.Time);
                 if (newAim.HasTimeToReact)
                 {
-                    if (!isServing)
+                    var ballExpression = hitTimeBallExpression.Clone();
+                    ballExpression.ProcessHit(playerExpression, Constants.BallHitHorizontalCoeff, Constants.BallHitVerticalCoeff);
+                    var hitSearcher = new HitSearcher(isServing, Side, ballExpression, optimizationVariables, optimizationLimitations);
+                    if (hitSearcher.Search())
                     {
-                        BallExpression ballExpression = hitTimeBallExpression.Clone();
-                        ballExpression.ProcessHit(playerExpression, Constants.BallHitHorizontalCoeff, Constants.BallHitVerticalCoeff);
-                        var hitSearcher = new HitSearcher(Side, ballExpression, optimizationVariables, optimizationLimitations);
-                        if (hitSearcher.Search())
-                        {
-                            NeedAim = false;
-                            player = playerExpression.Evaluate(Expression.NextAutoIncrementId);
-                            Aim = new Aim(player, this, hitTimeVar.Value, initialState.Time);
-                        }
-                    }
-                    else
-                    {
-                        attemptState.ProcessBatHit(player);
-                        var simulation = new Simulation(attemptState);
-                        if (simulation.Success)
-                        {
-                            NeedAim = false;
-                            Aim = newAim;
-                        }
+                        NeedAim = false;
+                        Aim = new Aim(playerExpression.Evaluate(), this, hitTimeVar.Value, initialState.Time);
                     }
                 }
             }

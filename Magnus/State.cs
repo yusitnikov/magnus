@@ -42,7 +42,7 @@ namespace Magnus
             Players[HitSide].RequestAim();
         }
 
-        private Event doStep(bool useBat, bool updateBat = false, State relativeState = null, Variable t = null, double dt = Constants.SimulationFrameTime)
+        private Event doStep(bool useBat, bool updateBat = false, State relativeState = null, double dt = Constants.SimulationFrameTime)
         {
             var events = Event.None;
 
@@ -64,7 +64,7 @@ namespace Magnus
                 Ball.DoStep(dt);
             }
 
-            events |= CheckForHits(prevBallState, relativeState != null);
+            events |= CheckForHits(prevBallState);
 
             if (Ball.Side != prevBallState.Side)
             {
@@ -86,14 +86,14 @@ namespace Magnus
 
         public void ProcessBatHit(Player player)
         {
-            var batSide = Point3D.ScalarMult(Ball.Speed, player.Normal) <= 0 ? 1 : -1;
+            var batSide = Point3D.ScalarMult(Ball.Speed - player.Speed, player.Normal) <= 0 ? 1 : -1;
             Ball.ProcessHit(player, Constants.BallHitHorizontalCoeff, Constants.BallHitVerticalCoeff, batSide);
 
             if (GameState != GameState.Failed)
             {
                 if (player.Index != HitSide || GameState.IsOneOf(GameState.NotReadyToHit))
                 {
-                    endSet(false);
+                    endSet(GameState == GameState.Served);
                 }
                 else
                 {
@@ -155,21 +155,9 @@ namespace Magnus
             }
         }
 
-        public bool IsHittingTableSimplified(bool closerToFail = false)
-        {
-            return IsHittingTableSimplified(Ball.Position, closerToFail);
-        }
-
-        public bool IsHittingTableSimplified(Point3D ballPosition, bool closerToFail = false)
-        {
-            var tableEndMargin = closerToFail ? -Constants.SimulationBordersMargin : Constants.BallRadius;
-            return Math.Abs(ballPosition.X) < Constants.HalfTableLength + tableEndMargin
-                && Math.Abs(ballPosition.Z) < Constants.HalfTableWidth + tableEndMargin;
-        }
-
         public void ProcessTableHit()
         {
-            Ball.ProcessHit(Surface.Horizontal, Constants.TableHitHorizontalCoeff, Constants.TableHitVerticalCoeff);
+            Ball.ProcessTableHit();
 
             var isHitSide = Ball.Side == Misc.GetPlayerSideByIndex(HitSide);
             switch (GameState)
@@ -201,7 +189,7 @@ namespace Magnus
             }
         }
 
-        public Event CheckForHits(Ball prevBallState, bool closerToFail = false)
+        public Event CheckForHits(Ball prevBallState)
         {
             Event events = 0;
 
@@ -218,7 +206,8 @@ namespace Magnus
 
             var verticalSpeedSign = Math.Sign(Ball.Speed.Y);
             if (
-                IsHittingTableSimplified(closerToFail) &&
+                Math.Abs(Ball.Position.X) < Constants.HalfTableLength + Constants.BallRadius &&
+                Math.Abs(Ball.Position.Z) < Constants.HalfTableWidth + Constants.BallRadius &&
                 verticalSpeedSign != 0 &&
                 Ball.Position.Y * verticalSpeedSign > -Constants.BallRadius &&
                 prevBallState.Position.Y * verticalSpeedSign <= -Constants.BallRadius
@@ -234,7 +223,7 @@ namespace Magnus
                 {
                     events |= Event.FloorHit;
 
-                    Ball.ProcessHit(Surface.HorizontalReverted, Constants.TableHitHorizontalCoeff, Constants.TableHitVerticalCoeff);
+                    Ball.ProcessTableHit(-1);
 
                     endSet(GameState.IsOneOf(GameState.NotReadyToHit));
                 }
@@ -243,24 +232,9 @@ namespace Magnus
             return events;
         }
 
-        public bool CheckForTableHitSimplified(bool closerToFail = false)
-        {
-            bool hitting = IsHittingTableSimplified(closerToFail);
-            if (hitting)
-            {
-                ProcessTableHit();
-            }
-            return hitting;
-        }
-
         public Event DoStep()
         {
             return doStep(false);
-        }
-
-        public Event DoSimplifiedStep(State relativeState, Variable t, double dt = Constants.SimulationFrameTime)
-        {
-            return doStep(false, false, relativeState, t, dt);
         }
 
         public Event DoStepWithBatUpdate()

@@ -500,7 +500,7 @@ namespace Magnus
             Speed = surface.Speed + projection.Speed.Full;
         }
 
-        public void ProcessHit(ASurface surface, double horizontalHitCoeff, double verticalHitCoeff, int side = 1)
+        public void ProcessHit(ASurface surface, double horizontalHitCoeff, double verticalHitCoeff, int side = 1, Ball[] derivatives = null)
         {
             var surfaceNormal = surface.Normal * side;
             var projection = ProjectToSurface(surface);
@@ -512,6 +512,39 @@ namespace Magnus
             projection.Speed.Horizontal += force;
             AngularSpeed += Point3D.VectorMult(force, ballPoint.Normal) / Constants.BallRadius;
             RestoreFromSurfaceProjection(surface, projection);
+        }
+
+        // optimized version of ProcessHit for table hit, with derivatives calculation
+        public void ProcessTableHit(int side = 1, Ball[] derivatives = null)
+        {
+            const double horizontalHitCoeff = Constants.TableHitHorizontalCoeff;
+            const double verticalHitCoeff = Constants.TableHitVerticalCoeff;
+
+            var horizontalSpeed = new Point3D(Speed.X, 0, Speed.Z);
+            var ballPointNormal = -side * Point3D.YAxis;
+            var ballPoint = Constants.BallRadius * ballPointNormal;
+            var fullPerpendicularSpeed = horizontalSpeed + Point3D.VectorMult(ballPoint, AngularSpeed);
+            var force = -horizontalHitCoeff * fullPerpendicularSpeed;
+
+            Speed += force;
+            Speed.Y *= -verticalHitCoeff;
+            AngularSpeed += Point3D.VectorMult(force, ballPointNormal) / Constants.BallRadius;
+            Position.Y = 2 * Constants.BallRadius * side - Position.Y;
+
+            if (derivatives != null)
+            {
+                foreach (var bdv in derivatives)
+                {
+                    var horizontalSpeedDv = new Point3D(bdv.Speed.X, 0, bdv.Speed.Z);
+                    var fullPerpendicularSpeedDv = horizontalSpeedDv + Point3D.VectorMult(ballPoint, bdv.AngularSpeed);
+                    var forceDv = -horizontalHitCoeff * fullPerpendicularSpeedDv;
+
+                    bdv.Speed += forceDv;
+                    bdv.Speed.Y *= -verticalHitCoeff;
+                    bdv.AngularSpeed += Point3D.VectorMult(forceDv, ballPointNormal) / Constants.BallRadius;
+                    bdv.Position.Y = -bdv.Position.Y;
+                }
+            }
         }
     }
 }

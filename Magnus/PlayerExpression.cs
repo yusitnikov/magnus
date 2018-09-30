@@ -21,7 +21,7 @@ namespace Magnus
             }
         }
 
-        public Player Evaluate(int cacheGeneration)
+        public Player Evaluate(int cacheGeneration = 0)
         {
             if (cacheGeneration == 0)
             {

@@ -78,7 +78,6 @@
     <Compile Include="PlayerExpression.cs" />
     <Compile Include="Player.cs" />
     <Compile Include="Profiler.cs" />
-    <Compile Include="Simulation.cs" />
     <Compile Include="State.cs" />
     <Compile Include="Strategies\SuperBlocker.cs" />
     <Compile Include="Strategies\Strategy.cs" />
@@ -86,7 +85,6 @@
     <Compile Include="Strategies\Passive.cs" />
     <Compile Include="Strategies\BackSpinner.cs" />
     <Compile Include="Strategies\TopSpinner.cs" />
-    <Compile Include="Surface.cs" />
     <Compile Include="World.cs" />
     <Compile Include="WorldDrawer.cs" />
     <Compile Include="WorldForm.cs">
