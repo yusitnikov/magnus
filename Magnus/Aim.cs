@@ -11,7 +11,7 @@ namespace Magnus
         private readonly double hitSpeed, forceToHit, timeToHit;
 
         private readonly Point3D moveVector;
-        private readonly double moveLength, forceMoveLength, timeToForceMove, timeToSpeedMove, timeToMove;
+        private readonly double moveLength, timeToMove;
 
         public readonly bool HasTimeToReact;
 
@@ -37,10 +37,7 @@ namespace Magnus
 
             moveVector = getHitPosition(-timeToHit) - aimPlayer0.Position;
             moveLength = moveVector.Length;
-            forceMoveLength = Math.Min(moveLength / 2, Misc.GetDistanceBySpeedAndForce(Constants.MaxPlayerSpeed, Constants.MaxPlayerForce));
-            timeToForceMove = Misc.GetTimeByDistanceAndForce(forceMoveLength, Constants.MaxPlayerForce);
-            timeToSpeedMove = (moveLength - 2 * forceMoveLength) / Constants.MaxPlayerSpeed;
-            timeToMove = timeToForceMove * 2 + timeToSpeedMove;
+            timeToMove = Misc.GetTimeByDistanceAndForce(moveLength / 2, Constants.MaxPlayerForce) * 2;
 
             HasTimeToReact = timeToMove + timeToHit <= aimT - aimT0;
         }
@@ -70,30 +67,19 @@ namespace Magnus
                 double timeFromState0 = s.Time - AimT0;
 
                 double currentMoveLength;
-                if (timeFromState0 <= timeToForceMove)
+                if (timeFromState0 <= timeToMove / 2)
                 {
                     currentMoveLength = Misc.GetDistanceByForceAndTime(Constants.MaxPlayerForce, timeFromState0);
                 }
                 else
                 {
-                    var timeFromMaxSpeedStart = timeFromState0 - timeToForceMove;
+                    var timeFromMoveEnd = timeFromState0 - timeToMove;
 
-                    if (timeFromMaxSpeedStart <= timeToSpeedMove)
-                    {
-                        currentMoveLength = forceMoveLength + Constants.MaxPlayerSpeed * timeFromMaxSpeedStart;
-                    }
-                    else
-                    {
-                        var timeFromMoveEnd = timeFromState0 - timeToMove;
+                    currentMoveLength = moveLength;
 
-                        if (timeFromMoveEnd < 0)
-                        {
-                            currentMoveLength = moveLength - Misc.GetDistanceByForceAndTime(Constants.MaxPlayerForce, timeFromMoveEnd);
-                        }
-                        else
-                        {
-                            currentMoveLength = moveLength;
-                        }
+                    if (timeFromMoveEnd < 0)
+                    {
+                        currentMoveLength -= Misc.GetDistanceByForceAndTime(Constants.MaxPlayerForce, timeFromMoveEnd);
                     }
                 }
 

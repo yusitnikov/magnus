@@ -2,6 +2,7 @@
 using Mathematics.Expressions;
 using Mathematics.Math3D;
 using System;
+using System.Collections.Generic;
 
 namespace Magnus
 {
@@ -15,10 +16,23 @@ namespace Magnus
         const double maxHeightAimMedian = netCrossYAimMedian;
         const double maxHeightAimCoeff = netCrossYAimCoeff;
 
+        private State initialState, state;
+        private Player player;
+        private List<State> states;
+        private double minHitTime, maxHitTime;
+
+        private Variable hitTimeVar = new Variable("FT");
+        private Variable hitSpeedVar = new Variable("HS");
+        private Variable attackPitchVar = new Variable("AP");
+        private Variable velocityAttackPitchVar = new Variable("VAP");
+        private Variable attackYawVar = new Variable("AY");
+        private Variable velocityAttackYawVar = new Variable("VAY");
+
         private bool isServing;
         private int playerSide;
         private BallExpression initialBallExpression;
         private BallExpression[] initialBallExpressionDerivatives;
+        private PlayerExpression playerExpression;
         private Variable[] optimizationVariables;
         private int optimizationVariablesCount;
         private VariableLimitation[] optimizationLimitations;
@@ -28,23 +42,225 @@ namespace Magnus
         private double serveTableHitTime, tableHitTime, netCrossTime, maxHeightTime;
         private double serveTableHitX, serveTableHitZ, tableHitX, tableHitZ, netCrossY, maxHeight;
 
-        public HitSearcher(bool isServing, int playerSide, BallExpression initialBallExpression, Variable[] optimizationVariables, VariableLimitation[] optimizationLimitations)
+        public HitSearcher(State state, Player player)
         {
-            this.isServing = isServing;
-            this.playerSide = playerSide;
-            this.initialBallExpression = initialBallExpression;
+            initialState = state;
+            this.state = state.Clone(true);
+            this.player = player;
+        }
+
+        public bool Initialize()
+        {
+            isServing = state.GameState == GameState.Serving;
+            playerSide = player.Side;
+
+            if (state.GameState == GameState.Failed || player.Index != state.HitSide)
+            {
+                player.MoveToInitialPosition(initialState, false);
+                return false;
+            }
+
+            states = new List<State>();
+
+            if (isServing)
+            {
+                while (state.Ball.Speed.Y >= 0 || state.Ball.Position.Y >= Constants.MaxBallServeY)
+                {
+                    state.DoStep();
+                }
+
+                var attemptState = state.Clone(false);
+                while (attemptState.Ball.Position.Y >= Constants.MinBallServeY)
+                {
+                    states.Add(attemptState.Clone(false));
+                    attemptState.DoStep();
+                }
+
+                states.Add(attemptState.Clone(false));
+
+                minHitTime = state.Time;
+                maxHitTime = attemptState.Time;
+            }
+            else
+            {
+                if (!state.DoStepsUntilGameState(GameState.FlyingToBat))
+                {
+                    player.MoveToInitialPosition(initialState, true);
+                    return false;
+                }
+
+                var attemptState = state.Clone(false);
+
+                // Calculate time till max height
+                while (attemptState.GameState != GameState.Failed)
+                {
+                    states.Add(attemptState.Clone(false));
+                    if (attemptState.DoStep().HasOneOfEvents(Event.MaxHeight))
+                    {
+                        break;
+                    }
+                }
+                double ballMaxHeightTime = attemptState.Time - state.Time;
+
+                // Calculate time till ball fall
+                while (attemptState.GameState != GameState.Failed)
+                {
+                    states.Add(attemptState.Clone(false));
+                    if (attemptState.DoStep().HasOneOfEvents(Event.LowHit))
+                    {
+                        break;
+                    }
+                }
+                double ballFallTime = attemptState.Time - state.Time;
+
+                states.Add(attemptState.Clone(false));
+
+                minHitTime = state.Time + player.Strategy.GetMinBackHitTime(ballMaxHeightTime, ballFallTime);
+                maxHitTime = state.Time + player.Strategy.GetMaxBackHitTime(ballMaxHeightTime, ballFallTime);
+            }
+
+            var statesCount = states.Count;
+            if (statesCount < 2)
+            {
+                return false;
+            }
+
+            var ballPositions = new Point3D[statesCount];
+            var ballSpeeds = new Point3D[statesCount];
+            var ballForces = new Point3D[statesCount];
+            var ballAngularSpeeds = new Point3D[statesCount];
+            var ballAngularForces = new Point3D[statesCount];
+            for (var index = 0; index < statesCount; index++)
+            {
+                var ball = states[index].Ball;
+                ballPositions[index] = ball.Position;
+                ballSpeeds[index] = ball.Speed;
+                ballForces[index] = ball.Force;
+                ballAngularSpeeds[index] = ball.AngularSpeed;
+                ballAngularForces[index] = ball.AngularForce;
+            }
+
+            optimizationVariables = new Variable[] { hitTimeVar, hitSpeedVar, attackPitchVar, attackYawVar, velocityAttackPitchVar, velocityAttackYawVar };
             optimizationVariablesCount = optimizationVariables.Length;
+            optimizationLimitations = new VariableLimitation[]
+            {
+                new VariableLimitation() { Variable = hitTimeVar, Limit = minHitTime, Sign = -1 },
+                new VariableLimitation() { Variable = hitTimeVar, Limit = maxHitTime, Sign = 1 },
+                new VariableLimitation() { Variable = hitSpeedVar, Limit = 0, Sign = -1 },
+                new VariableLimitation() { Variable = hitSpeedVar, Limit = 1, Sign = 1 },
+                new VariableLimitation() { Variable = attackPitchVar, Limit = 0, Sign = -1 },
+                new VariableLimitation() { Variable = attackPitchVar, Limit = 1, Sign = 1 },
+                new VariableLimitation() { Variable = velocityAttackPitchVar, Limit = 0, Sign = -1 },
+                new VariableLimitation() { Variable = velocityAttackPitchVar, Limit = 1, Sign = 1 },
+                new VariableLimitation() { Variable = attackYawVar, Limit = -1, Sign = -1 },
+                new VariableLimitation() { Variable = attackYawVar, Limit = 1, Sign = 1 },
+                new VariableLimitation() { Variable = velocityAttackYawVar, Limit = -1, Sign = -1 },
+                new VariableLimitation() { Variable = velocityAttackYawVar, Limit = 1, Sign = 1 },
+            };
+
+            var ballForceExpression = FunctionByPoints.Create3DFunctionByPoints("BallForce", hitTimeVar, ballForces, state.Time, Constants.SimulationFrameTime);
+            var ballSpeedExpression = FunctionByPoints.Create3DFunctionByPoints("BallSpeed", hitTimeVar, ballSpeeds, state.Time, Constants.SimulationFrameTime, ballForceExpression);
+            var ballPositionExpression = FunctionByPoints.Create3DFunctionByPoints("BallPosition", hitTimeVar, ballPositions, state.Time, Constants.SimulationFrameTime, ballSpeedExpression);
+            var ballAngularForceExpression = FunctionByPoints.Create3DFunctionByPoints("BallAngularForce", hitTimeVar, ballAngularForces, state.Time, Constants.SimulationFrameTime);
+            var ballAngularSpeedExpression = FunctionByPoints.Create3DFunctionByPoints("BallAngularSpeed", hitTimeVar, ballAngularSpeeds, state.Time, Constants.SimulationFrameTime, ballAngularForceExpression);
+            initialBallExpression = new BallExpression(ballPositionExpression, ballSpeedExpression, ballAngularSpeedExpression);
+
+            var ballReverseSpeed = -initialBallExpression.Speed;
+            var reverseBallSpeedPitch = ballReverseSpeed.Pitch;
+            var reverseBallSpeedYaw = ballReverseSpeed.Yaw;
+            if (isServing)
+            {
+                // Yaw for vertical vector is undefined, so use default bat direction instead
+                reverseBallSpeedYaw = player.DefaultNormal.Yaw;
+            }
+
+            Expression minVelocityAttackPitch, maxVelocityAttackPitch;
+            double minHitSpeed, maxHitSpeed, minAttackPitch, maxAttackPitch, maxAttackYaw, maxVelocityAttackYaw;
+            if (isServing)
+            {
+                var ballX = Math.Abs(state.Ball.Position.X);
+                minHitSpeed = Constants.MaxPlayerSpeed * player.Strategy.GetMinServeHitSpeed(ballX);
+                maxHitSpeed = Constants.MaxPlayerSpeed * player.Strategy.GetMaxServeHitSpeed(ballX);
+                minAttackPitch = player.Strategy.GetMinServeAttackAngle();
+                maxAttackPitch = player.Strategy.GetMaxServeAttackAngle();
+                minVelocityAttackPitch = player.Strategy.GetMinServeVelocityAttackAngle();
+                maxVelocityAttackPitch = player.Strategy.GetMaxServeVelocityAttackAngle();
+                maxAttackYaw = Misc.FromDegrees(40);
+                maxVelocityAttackYaw = Misc.FromDegrees(70);
+            }
+            else
+            {
+                minHitSpeed = Constants.MaxPlayerSpeed * player.Strategy.GetMinHitSpeed();
+                maxHitSpeed = Constants.MaxPlayerSpeed * player.Strategy.GetMaxHitSpeed();
+                minAttackPitch = player.Strategy.GetMinAttackAngle();
+                maxAttackPitch = player.Strategy.GetMaxAttackAngle();
+                minVelocityAttackPitch = player.Strategy.GetMinVelocityAttackAngle();
+                maxVelocityAttackPitch = player.Strategy.GetMaxVelocityAttackAngle();
+                maxAttackYaw = Misc.FromDegrees(50);
+                maxVelocityAttackYaw = Misc.FromDegrees(60);
+            }
+            //maxAttackYaw = maxVelocityAttackYaw = 0.0001;
+
+            var hitSpeed = minHitSpeed + hitSpeedVar * (maxHitSpeed - minHitSpeed);
+            var attackPitch = minAttackPitch + attackPitchVar * (maxAttackPitch - minAttackPitch);
+            if (!isServing)
+            {
+                minVelocityAttackPitch = Expression.Max(minVelocityAttackPitch, attackPitch - Constants.MaxAttackAngleDifference);
+                maxVelocityAttackPitch = Expression.Min(maxVelocityAttackPitch, attackPitch + Constants.MaxAttackAngleDifference);
+            }
+            var velocityAttackPitch = minVelocityAttackPitch + velocityAttackPitchVar * (maxVelocityAttackPitch - minVelocityAttackPitch);
+            var attackYaw = attackYawVar * maxAttackYaw;
+            var velocityAttackYaw = velocityAttackYawVar * maxVelocityAttackYaw;
+
+            playerExpression = new PlayerExpression()
+            {
+                Index = player.Index,
+                AnglePitch = reverseBallSpeedPitch + attackPitch,
+                AngleYaw = reverseBallSpeedYaw + attackYaw,
+                Speed = hitSpeed * Point3DExpression.FromAngles(reverseBallSpeedPitch + velocityAttackPitch, reverseBallSpeedYaw + attackYaw + velocityAttackYaw)
+            };
+            playerExpression.Position = initialBallExpression.Position - Constants.BallRadius * playerExpression.Normal;
+
+            initialBallExpression.ProcessHit(playerExpression, Constants.BallHitHorizontalCoeff, Constants.BallHitVerticalCoeff);
+
             initialBallExpressionDerivatives = new BallExpression[optimizationVariablesCount];
             for (var i = 0; i < optimizationVariablesCount; i++)
             {
                 initialBallExpressionDerivatives[i] = initialBallExpression.Derivate(optimizationVariables[i]);
             }
-            this.optimizationVariables = optimizationVariables;
-            this.optimizationLimitations = optimizationLimitations;
+
+            return true;
+        }
+
+        public Aim GetAim()
+        {
+            var aimPlayer = playerExpression.Evaluate();
+            if (aimPlayer.Position.Z * aimPlayer.Side > 0)
+            {
+                aimPlayer.AnglePitch += Math.PI;
+            }
+            else
+            {
+                aimPlayer.AngleYaw += Math.PI;
+                aimPlayer.AnglePitch = -aimPlayer.AnglePitch;
+            }
+            return new Aim(aimPlayer, player, hitTimeVar.Value, initialState.Time);
         }
 
         public bool Search()
         {
+            hitTimeVar.Value = Misc.Rnd(minHitTime, maxHitTime);
+            hitSpeedVar.Value = Misc.Rnd(0, 1);
+            attackPitchVar.Value = Misc.Rnd(0, 1);
+            velocityAttackPitchVar.Value = Misc.Rnd(0, 1);
+            attackYawVar.Value = Misc.Rnd(-1, 1);
+            velocityAttackYawVar.Value = Misc.Rnd(-1, 1);
+
+            if (!GetAim().HasTimeToReact)
+            {
+                return false;
+            }
+
             var it = 0;
             while (true)
             {
