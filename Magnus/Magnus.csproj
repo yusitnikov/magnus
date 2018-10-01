@@ -51,6 +51,9 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="AimByGracefulMovement.cs" />
+    <Compile Include="AimByCoords.cs" />
+    <Compile Include="AimCoord.cs" />
     <Compile Include="Aim.cs" />
     <Compile Include="ASurfaceExpression.cs" />
     <Compile Include="ASurface.cs" />

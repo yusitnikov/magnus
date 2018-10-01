@@ -37,6 +37,18 @@ namespace Magnus
             };
         }
 
+        public PlayerExpression Derivate(Variable v)
+        {
+            return new PlayerExpression()
+            {
+                Index = Index,
+                Position = Position.Derivate(v),
+                Speed = Speed.Derivate(v),
+                AnglePitch = AnglePitch.Derivate(v),
+                AngleYaw = AngleYaw.Derivate(v)
+            };
+        }
+
         public Point3DExpression TranslateVectorFromBatCoords(Point3DExpression point)
         {
             return point.RotatePitch(AnglePitch).RotateYaw(AngleYaw);

@@ -32,7 +32,10 @@ namespace Magnus
         private int playerSide;
         private BallExpression initialBallExpression;
         private BallExpression[] initialBallExpressionDerivatives;
+        private Player aimPlayer;
         private PlayerExpression playerExpression;
+        private PlayerExpression[] playerExpressionDerivatives;
+        private Player[] playerDerivatives;
         private Variable[] optimizationVariables;
         private int optimizationVariablesCount;
         private VariableLimitation[] optimizationLimitations;
@@ -41,6 +44,9 @@ namespace Magnus
         private Ball.SimplifiedStepDerivatives initialBallDerivatives, ballDerivativesAtTableHitTime;
         private double serveTableHitTime, tableHitTime, netCrossTime, maxHeightTime;
         private double serveTableHitX, serveTableHitZ, tableHitX, tableHitZ, netCrossY, maxHeight;
+        private Point3D aimCriteria1, aimCriteria2;
+
+        private bool hasTimeToReact;
 
         public HitSearcher(State state, Player player)
         {
@@ -224,30 +230,17 @@ namespace Magnus
             initialBallExpression.ProcessHit(playerExpression, Constants.BallHitHorizontalCoeff, Constants.BallHitVerticalCoeff);
 
             initialBallExpressionDerivatives = new BallExpression[optimizationVariablesCount];
+            playerExpressionDerivatives = new PlayerExpression[optimizationVariablesCount];
             for (var i = 0; i < optimizationVariablesCount; i++)
             {
                 initialBallExpressionDerivatives[i] = initialBallExpression.Derivate(optimizationVariables[i]);
+                playerExpressionDerivatives[i] = playerExpression.Derivate(optimizationVariables[i]);
             }
 
             return true;
         }
 
-        public Aim GetAim()
-        {
-            var aimPlayer = playerExpression.Evaluate();
-            if (aimPlayer.Position.Z * aimPlayer.Side > 0)
-            {
-                aimPlayer.AnglePitch += Math.PI;
-            }
-            else
-            {
-                aimPlayer.AngleYaw += Math.PI;
-                aimPlayer.AnglePitch = -aimPlayer.AnglePitch;
-            }
-            return new Aim(aimPlayer, player, hitTimeVar.Value, initialState.Time);
-        }
-
-        public bool Search()
+        public Aim Search()
         {
             hitTimeVar.Value = Misc.Rnd(minHitTime, maxHitTime);
             hitSpeedVar.Value = Misc.Rnd(0, 1);
@@ -256,78 +249,77 @@ namespace Magnus
             attackYawVar.Value = Misc.Rnd(-1, 1);
             velocityAttackYawVar.Value = Misc.Rnd(-1, 1);
 
-            if (!GetAim().HasTimeToReact)
-            {
-                return false;
-            }
-
             var it = 0;
             while (true)
             {
                 ++it;
                 if (it > 100)
                 {
-                    return false;
+                    return null;
                 }
 
                 GradientSearch.EvalResult? cachedResult = evaluate();
                 if (double.IsNaN(tableHitTime))
                 {
                     // It shouldn't happen
-                    return false;
+                    return null;
                 }
 
-                var done = true;
+                var done = hasTimeToReact;
                 if (tableHitX <= 0 || isServing && serveTableHitX <= 0)
                 {
                     done = false;
                 }
                 else
                 {
-                    if (isServing && serveTableHitX > Constants.HalfTableLength - Constants.SimulationBordersMargin / 3)
-                    {
-                        done = false;
-                    }
+                    done = done && (!isServing || serveTableHitX <= Constants.HalfTableLength - Constants.SimulationBordersMargin / 3);
 
-                    var verticalLiftForce = Point3D.VectorMult(initialBallState.Speed, initialBallState.AngularSpeed).Y;
-                    if (
-                        tableHitX > Constants.HalfTableLength - Constants.SimulationBordersMargin ||
-                        tableHitX < Constants.NetHeight ||
-                        tableHitX < Constants.SimulationNetMargin && verticalLiftForce > 0
-                    )
-                    {
-                        done = false;
-                    }
+                    done = done && (
+                        tableHitX <= Constants.HalfTableLength - Constants.SimulationBordersMargin &&
+                        tableHitX >= Constants.NetHeight &&
+                        (tableHitX >= Constants.SimulationNetMargin || Point3D.VectorMult(initialBallState.Speed, initialBallState.AngularSpeed).Y < 0)
+                    );
 
                     if (double.IsNaN(netCrossTime))
                     {
                         // It shouldn't happen
-                        return false;
+                        return null;
                     }
-                    if (netCrossY < Constants.MinNetCrossY)
-                    {
-                        done = false;
-                    }
+                    done = done && netCrossY >= Constants.MinNetCrossY;
                 }
 
-                if (isServing && Math.Abs(serveTableHitZ) > Constants.HalfTableWidth - Constants.SimulationBordersMargin)
-                {
-                    done = false;
-                }
+                done = done && (!isServing || Math.Abs(serveTableHitZ) <= Constants.HalfTableWidth - Constants.SimulationBordersMargin);
 
-                if (Math.Abs(tableHitZ) > Constants.HalfTableWidth - Constants.SimulationBordersMargin)
-                {
-                    done = false;
-                }
+                done = done && Math.Abs(tableHitZ) <= Constants.HalfTableWidth - Constants.SimulationBordersMargin;
 
-                if (!double.IsNaN(maxHeightTime) && maxHeight > Constants.MaxBallMaxHeight)
-                {
-                    done = false;
-                }
+                done = done && (double.IsNaN(maxHeightTime) || maxHeight <= Constants.MaxBallMaxHeight);
 
                 if (done)
                 {
-                    return true;
+                    var aimPlayer = playerExpression.Evaluate();
+                    if (aimPlayer.Position.Z * aimPlayer.Side > 0)
+                    {
+                        aimPlayer.AnglePitch += Math.PI;
+                    }
+                    else
+                    {
+                        aimPlayer.AngleYaw += Math.PI;
+                        aimPlayer.AnglePitch = -aimPlayer.AnglePitch;
+                    }
+
+                    Aim aim = new AimByGracefulMovement(aimPlayer, player, hitTimeVar.Value, initialState.Time);
+                    if (!aim.HasTimeToReact)
+                    {
+                        aim = new AimByCoords(aimPlayer, player, hitTimeVar.Value, initialState.Time);
+                    }
+
+                    if (!aim.HasTimeToReact)
+                    {
+                        // It shoudn't happen
+                        return null;
+                    }
+
+                    return aim;
                 }
 
                 var success = GradientSearch.Step(
@@ -343,7 +335,7 @@ namespace Magnus
                 if (!success)
                 {
                     // It shouldn't happen
-                    return false;
+                    return null;
                 }
             }
         }
@@ -369,10 +361,20 @@ namespace Magnus
                 VarsCount = optimizationVariablesCount,
                 RelativeBallStateDv = new Ball[optimizationVariablesCount]
             };
+            aimPlayer = playerExpression.Evaluate(cacheGeneration);
+            playerDerivatives = new Player[optimizationVariablesCount];
             for (var i = 0; i < optimizationVariablesCount; i++)
             {
                 initialBallDerivatives.RelativeBallStateDv[i] = initialBallExpressionDerivatives[i].Evaluate(cacheGeneration);
+                playerDerivatives[i] = playerExpressionDerivatives[i].Evaluate(cacheGeneration);
             }
+            #endregion
+
+            #region hasTimeToReact
+            hasTimeToReact = true;
+            evaluateHasTimeToReact(ref result, p => p.X, (p, v) => { p.X = v; return p; });
+            evaluateHasTimeToReact(ref result, p => p.Y, (p, v) => { p.Y = v; return p; });
+            evaluateHasTimeToReact(ref result, p => p.Z, (p, v) => { p.Z = v; return p; });
             #endregion
 
             #region tableHitPos
@@ -462,6 +464,49 @@ namespace Magnus
             #endregion
 
             return result;
+        }
+
+        private void evaluateHasTimeToReact(ref GradientSearch.EvalResult result, Func<Point3D, double> coordPicker, Func<Point3D, double, Point3D> coordSetter)
+        {
+            const double a = Constants.MaxPlayerForce;
+
+            var t = hitTimeVar.Value;
+            var x1 = coordPicker(player.Position);
+            var x2 = coordPicker(aimPlayer.Position);
+            var v1 = coordPicker(player.Speed);
+            var v2 = coordPicker(aimPlayer.Speed);
+
+            var z1 = a * t / 2;
+            var z2 = (v2 - v1) / 2;
+            var z3 = z1 * z1 - z2 - z2;
+            var z4 = a * (x1 - x2) + (v1 + v2) * z1;
+
+            if (z3 < Math.Abs(z4))
+            {
+                hasTimeToReact = false;
+            }
+
+            var criteriaValue1 = z2 / z1;
+            var criteriaValue2 = z4 / z3;
+            aimCriteria1 = coordSetter(aimCriteria1, criteriaValue1);
+            aimCriteria2 = coordSetter(aimCriteria2, criteriaValue2);
+            result.Value += criteriaValue1 * criteriaValue1 + criteriaValue2 * criteriaValue2;
+            var derivativeCoeff1 = 2 * criteriaValue1 / z1;
+            var derivativeCoeff2 = 2 * criteriaValue2 / z3;
+
+            for (var i = 0; i < optimizationVariablesCount; i++)
+            {
+                var dt = hitTimeVar == optimizationVariables[i] ? 1 : 0;
+                var dx2 = coordPicker(playerDerivatives[i].Position);
+                var dv2 = coordPicker(playerDerivatives[i].Speed);
+
+                var dz1 = a * dt / 2;
+                var dz2 = dv2 / 2;
+                var dz3 = 2 * (z1 * dz1 - z2 - dz2);
+                var dz4 = -a * dx2 + dv2 * z1 + (v1 + v2) * dz1;
+
+                result.Derivatives[i] += derivativeCoeff1 * (dz2 - criteriaValue1 * dz1) + derivativeCoeff2 * (dz4 - criteriaValue2 * dz3);
+            }
         }
 
         private bool evaluateTableHitPos(ref GradientSearch.EvalResult result, int sideCoeff)

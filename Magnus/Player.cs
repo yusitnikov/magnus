@@ -125,7 +125,7 @@ namespace Magnus
             readyPosition.ResetPosition(getWaitX(state, prepareToServe), false);
             readyPosition.ResetAim();
             NeedAim = false;
-            Aim = new Aim(readyPosition, this, double.PositiveInfinity, state.Time);
+            Aim = new AimByGracefulMovement(readyPosition, this, double.PositiveInfinity, state.Time);
         }
 
         public void RequestAim()
@@ -148,10 +148,11 @@ namespace Magnus
             {
                 ++iterations;
 
-                if (hitSearcher.Search())
+                var newAim = hitSearcher.Search();
+                if (newAim != null)
                 {
                     NeedAim = false;
-                    Aim = hitSearcher.GetAim();
+                    Aim = newAim;
                     break;
                 }
             }
