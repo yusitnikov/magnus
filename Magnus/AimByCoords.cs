@@ -3,28 +3,66 @@ using System;
 
 namespace Magnus
 {
-    class AimByCoords : Aim
+    class AimByCoords<AimCoordType> : Aim where AimCoordType : AimCoord
     {
-        private readonly AimCoord aimX, aimY, aimZ;
+        private AimCoordType aimX, aimY, aimZ;
+
+        private Point3D xAxis, yAxis, zAxis;
 
         public AimByCoords(Player aimPlayer, Player aimPlayer0, double aimT, double aimT0) : base(aimPlayer, aimPlayer0, aimT, aimT0)
         {
-            aimX = new AimCoord(AimPlayer.Position.X, AimPlayer0.Position.X, AimPlayer.Speed.X, AimPlayer0.Speed.X, AimT, AimT0);
-            aimY = new AimCoord(AimPlayer.Position.Y, AimPlayer0.Position.Y, AimPlayer.Speed.Y, AimPlayer0.Speed.Y, AimT, AimT0);
-            aimZ = new AimCoord(AimPlayer.Position.Z, AimPlayer0.Position.Z, AimPlayer.Speed.Z, AimPlayer0.Speed.Z, AimT, AimT0);
+        }
 
-            timeToMove = Math.Max(aimX.timeToMove, Math.Max(aimY.timeToMove, aimZ.timeToMove));
+        protected override void init()
+        {
+            base.init();
+
+            var constructor = typeof(AimCoordType).GetConstructors()[0];
+            var args = new object[0];
+            aimX = constructor.Invoke(args) as AimCoordType;
+            aimY = constructor.Invoke(args) as AimCoordType;
+            aimZ = constructor.Invoke(args) as AimCoordType;
+
+            // Set axises at init() to keep them constant per SetCurrentState calls
+            var dp = AimPlayer.Position - aimPlayer0.Position;
+            var pitch = dp.Pitch;
+            var yaw = dp.Yaw;
+            // same as Point3D.FromAngles(pitch, yaw), so should be equal to dp.Normal
+            yAxis = Point3D.YAxis.RotatePitch(pitch).RotateYaw(yaw);
+            xAxis = (AimPlayer.Speed - aimPlayer0.Speed).ProjectToNormalVector(yAxis).Horizontal.Normal;
+            if (Math.Abs(Point3D.ScalarMult(xAxis, yAxis) - 1) < 1e-3)
+            {
+                zAxis = Point3D.VectorMult(xAxis, yAxis);
+            }
+            else
+            {
+                xAxis = Point3D.XAxis.RotatePitch(pitch).RotateYaw(yaw);
+                zAxis = Point3D.ZAxis.RotatePitch(pitch).RotateYaw(yaw);
+            }
+        }
+
+        public override void SetCurrentState(Player player, double t)
+        {
+            base.SetCurrentState(player, t);
+
+            setCoordState(aimX, xAxis);
+            setCoordState(aimY, yAxis);
+            setCoordState(aimZ, zAxis);
+
+            TimeToMove = Math.Max(aimX.TimeToMove, Math.Max(aimY.TimeToMove, aimZ.TimeToMove));
 
             HasTimeToReact = aimX.HasTimeToReact && aimY.HasTimeToReact && aimZ.HasTimeToReact;
         }
 
-        protected override void updatePlayerPosition(State s, Player p)
+        private void setCoordState(AimCoordType aimCoord, Point3D axis)
         {
-            p.Position = new Point3D(
-                aimX.GetX(s),
-                aimY.GetX(s),
-                aimZ.GetX(s)
-            );
+            aimCoord.SetAimState(Point3D.ScalarMult(AimPlayer.Position, axis), Point3D.ScalarMult(AimPlayer.Speed, axis), AimT);
+            aimCoord.SetCurrentState(Point3D.ScalarMult(aimPlayer0.Position, axis), Point3D.ScalarMult(aimPlayer0.Speed, axis), aimT0);
+        }
+
+        protected override Point3D getPlayerForce(State s, Player p)
+        {
+            return xAxis * aimX.GetForce(s) + yAxis * aimY.GetForce(s) + zAxis * aimZ.GetForce(s);
         }
     }
 }

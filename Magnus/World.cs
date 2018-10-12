@@ -27,8 +27,9 @@ namespace Magnus
             State.UpdateNextServeX();
             for (var playerIndex = 0; playerIndex <= 1; playerIndex++)
             {
-                State.Players[playerIndex] = new Player(playerIndex);
-                State.Players[playerIndex].ResetPosition(State.NextServeX + Constants.NetHeight, true);
+                var player = State.Players[playerIndex] = new Player(playerIndex);
+                player.ResetPosition(State.NextServeX + Constants.NetHeight, true);
+                player.InitHitSearchThread();
             }
             State.Reset();
 
@@ -97,7 +98,7 @@ namespace Magnus
                 if (events.HasFlag(Event.BatHit))
                 {
                     var hitPlayerIndex = events.HasFlag(Event.LeftBatHit) ? Constants.RightPlayerIndex : Constants.LeftPlayerIndex;
-                    State.Players[hitPlayerIndex].RequestAim();
+                    State.Players[hitPlayerIndex].RequestAim(State);
                 }
             }
         }

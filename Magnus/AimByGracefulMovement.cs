@@ -5,14 +5,19 @@ namespace Magnus
 {
     class AimByGracefulMovement : Aim
     {
-        private readonly double hitSpeed, forceToHit, timeToHit;
+        private double forceToHit, timeToHit;
 
-        private readonly Point3D moveVector;
-        private readonly double moveLength;
+        private AimByWaitPosition hitWaitPositionAim;
 
         public AimByGracefulMovement(Player aimPlayer, Player aimPlayer0, double aimT, double aimT0) : base(aimPlayer, aimPlayer0, aimT, aimT0)
         {
-            hitSpeed = aimPlayer.Speed.Length;
+        }
+
+        protected override void init()
+        {
+            base.init();
+
+            var hitSpeed = AimPlayer.Speed.Length;
             if (hitSpeed == 0)
             {
                 forceToHit = timeToHit = 0;
@@ -25,48 +30,39 @@ namespace Magnus
                 timeToHit = Misc.GetTimeBySpeedAndForce(hitSpeed, forceToHit);
             }
 
-            moveVector = getHitPosition(-timeToHit) - aimPlayer0.Position;
-            moveLength = moveVector.Length;
-            timeToMove = Misc.GetTimeByDistanceAndForce(moveLength / 2, Constants.MaxPlayerForce) * 2;
-
-            HasTimeToReact = timeToMove + timeToHit <= aimT - aimT0;
+            var hitWaitPlayer = AimPlayer.Clone();
+            hitWaitPlayer.Position = getHitPosition(timeToHit, forceToHit);
+            hitWaitPlayer.Speed = Point3D.Empty;
+            hitWaitPositionAim = new AimByWaitPosition(hitWaitPlayer, aimPlayer0, aimT0);
         }
 
-        private Point3D getHitPosition(double t)
+        public override void SetCurrentState(Player player, double t)
         {
-            return getHitPosition(t, forceToHit);
+            base.SetCurrentState(player, t);
+            hitWaitPositionAim.SetCurrentState(player, t);
+
+            TimeToMove = hitWaitPositionAim.TimeToMove;
+            HasTimeToReact = hitWaitPositionAim.HasTimeToReact && TimeToMove + timeToHit <= AimT - aimT0;
         }
 
-        protected override void updatePlayerPosition(State s, Player p)
+        protected override Point3D getPlayerForce(State s, Player p)
         {
-            double timeFromState = s.Time - AimT;
+            double dt = AimT - s.Time;
 
-            if (timeFromState > -timeToHit)
+            if (dt < timeToHit)
             {
-                p.Position = getHitPosition(timeFromState);
+                // This force should be used ideally
+                var force = getHitForce(forceToHit);
+                // But we know that there is some misaccuracy, so let's fix it
+                var speedError = AimPlayer.Speed - (p.Speed + force * dt);
+                force += speedError / timeToHit;
+                var positionError = AimPlayer.Position - (p.Position + p.Speed * dt + force * (dt * dt / 2));
+                force += Misc.GetForceByDistanceAndTime(positionError / 2, dt / 2);
+                return force;
             }
             else
             {
-                double timeFromState0 = s.Time - AimT0;
-
-                double currentMoveLength;
-                if (timeFromState0 <= timeToMove / 2)
-                {
-                    currentMoveLength = Misc.GetDistanceByForceAndTime(Constants.MaxPlayerForce, timeFromState0);
-                }
-                else
-                {
-                    var timeFromMoveEnd = timeFromState0 - timeToMove;
-
-                    currentMoveLength = moveLength;
-
-                    if (timeFromMoveEnd < 0)
-                    {
-                        currentMoveLength -= Misc.GetDistanceByForceAndTime(Constants.MaxPlayerForce, timeFromMoveEnd);
-                    }
-                }
-
-                p.Position = AimPlayer0.Position + currentMoveLength * moveVector.Normal;
+                return hitWaitPositionAim.GetPlayerForce(s, p);
             }
         }
     }

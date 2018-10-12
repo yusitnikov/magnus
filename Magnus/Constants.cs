@@ -31,7 +31,7 @@ namespace Magnus
         public const double BatWaitX = HalfTableLength + BatWidth * 2, BatWaitY = NetHeight, MinBallServeX = 20 * LengthUnit, MaxBallServeX = 80 * LengthUnit, MinBallServeY = NetHeight, MaxBallServeY = NetHeight * 2, MinBallServeThrowSpeed = 200 * SpeedUnit, MaxBallServeThrowSpeed = 600 * SpeedUnit, MaxAttackAngleDifference = 72 * Math.PI / 180, MinHitY = -NetHeight * 2;
 
         // simulation constants
-        public const double MaxThinkTimePerFrame = 0.02, MinNetCrossY = NetHeight + BallRadius * 2, SimulationNetMargin = HalfTableLength / 3, SimulationBordersMargin = BatWidth, MaxBallMaxHeight = NetHeight * 4;
+        public const double MaxThinkTimePerFrame = 0.02, MinNetCrossY = NetHeight + BallRadius * 2, SimulationNetMargin = HalfTableLength / 3, SimulationBordersMargin = BatWidth, MaxBallMaxHeight = NetHeight * 4, MaxBallServeMaxHeight = NetHeight * 1.5;
 
         public const double ScreenZoom = 0.4;
     }

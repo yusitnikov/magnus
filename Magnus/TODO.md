@@ -1,0 +1,13 @@
+﻿- check bat for table collisions:
+	- in Aim
+	- in HitSearcher
+	- generic hit prevention
+- simulate cameras input detection instead of 100% accurate ball trajectories
+- something more graceful than AimByCoords when possible
+- continuous hit searching based on dynamic input
+- fix using more than MaxForce in Aim implementations
+- save game history to:
+	- replay slowly or from other view
+	- debug
+	- record a video
+- control camera in a more usable way (for instance, drag instead of just moving the mouse)

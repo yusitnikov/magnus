@@ -1,14 +1,12 @@
 ﻿using Magnus.Strategies;
-using Mathematics.Expressions;
 using Mathematics.Math3D;
 using System;
-using System.Collections.Generic;
 
 namespace Magnus
 {
     class Player : ASurface
     {
-        public static double LastSearchTime = 0;
+        public Point3D Force;
 
         public int Index;
 
@@ -32,8 +30,18 @@ namespace Magnus
 
         public Point3D DefaultNormal => new Point3D(-Side, 0, 0);
 
-        public bool NeedAim;
-        public Aim Aim;
+        public Point3D LowestPoint
+        {
+            get
+            {
+                var vector = TranslateVectorFromBatCoords(new Point3D(Constants.BatRadius, 0, 0));
+                return Position - vector * Math.Sign(vector.Y);
+            }
+        }
+
+        private HitSearcherThread hitSearcherThread;
+        public bool NeedAim { get; private set; }
+        private Aim aim;
 
         internal Player()
         {
@@ -44,12 +52,18 @@ namespace Magnus
             Index = index;
             Score = 0;
             Strategy = new Strategy();
-            Position = Speed = Point3D.Empty;
+            Position = Speed = Force = Point3D.Empty;
             Normal = DefaultNormal;
             NeedAim = false;
-            Aim = null;
+            aim = null;
         }
 
+        public void InitHitSearchThread()
+        {
+            hitSearcherThread = new HitSearcherThread();
+        }
+
+        // X - shorter side, Y - normal, Z - longer side
         public Point3D TranslateVectorFromBatCoords(Point3D point)
         {
             return point.RotatePitch(AnglePitch).RotateYaw(AngleYaw);
@@ -74,7 +88,11 @@ namespace Magnus
         public void ResetAim()
         {
             NeedAim = false;
-            Aim = null;
+            aim = null;
+            if (hitSearcherThread != null)
+            {
+                hitSearcherThread.StopSearching();
+            }
         }
 
         public Player Clone()
@@ -89,25 +107,29 @@ namespace Magnus
                 AnglePitch = AnglePitch,
                 AngleYaw = AngleYaw,
                 NeedAim = false,
-                Aim = null
+                aim = null
             };
         }
 
         public void DoStep(State state, double dt)
         {
-            var prevPosition = Position;
-
-            if (Aim != null)
+            if (aim == null)
             {
-                bool stillMoving = Aim.UpdatePlayerPosition(state, this);
-
-                if (!stillMoving || state.GameState == GameState.Failed && Math.Abs(Aim.AimPlayer.Position.X) < getWaitX(state, false))
-                {
-                    MoveToInitialPosition(state, false);
-                }
+                MoveToInitialPosition(state, false);
             }
 
-            Speed = (Position - prevPosition) / dt;
+            aim.TrySetCurrentState(this, state.Time - dt);
+
+            if (state.GameState == GameState.Failed && (!(aim is AimByWaitPosition) || Math.Abs(aim.AimPlayer.Position.X) < getWaitX(state, false)))
+            {
+                ResetAim();
+                MoveToInitialPosition(state, false);
+            }
+
+            aim.UpdatePlayer(state, this);
+
+            Position += Speed * dt + Force * (dt * dt / 2);
+            Speed += Force * dt;
         }
 
         private double getWaitX(State state, bool prepareToServe)
@@ -121,42 +143,34 @@ namespace Magnus
 
         public void MoveToInitialPosition(State state, bool prepareToServe)
         {
-            var readyPosition = Clone();
-            readyPosition.ResetPosition(getWaitX(state, prepareToServe), false);
-            readyPosition.ResetAim();
-            NeedAim = false;
-            Aim = new AimByGracefulMovement(readyPosition, this, double.PositiveInfinity, state.Time);
+            aim = GetInitialPositionAim(state, prepareToServe);
         }
 
-        public void RequestAim()
+        public Aim GetInitialPositionAim(State state, bool prepareToServe)
+        {
+            var readyPosition = Clone();
+            readyPosition.ResetPosition(getWaitX(state, prepareToServe), false);
+            return new AimByWaitPosition(readyPosition, this, state.Time);
+        }
+
+        public void RequestAim(State state)
         {
             NeedAim = true;
+            hitSearcherThread.StartSearching(state, this, true);
         }
 
         public void FindHit(State state)
         {
-            var searchStartTime = DateTime.Now;
-
-            var hitSearcher = new HitSearcher(state, this);
-            if (!hitSearcher.Initialize())
+            var result = hitSearcherThread.GetResult();
+            if (result == null)
             {
-                return;
+                hitSearcherThread.StartSearching(state, this, false);
             }
-
-            var iterations = 0;
-            while ((DateTime.Now - searchStartTime).TotalSeconds < Constants.MaxThinkTimePerFrame)
+            else
             {
-                ++iterations;
-
-                var newAim = hitSearcher.Search();
-                if (newAim != null)
-                {
-                    NeedAim = false;
-                    Aim = newAim;
-                    break;
-                }
+                NeedAim = false;
+                aim = result;
             }
-            LastSearchTime = (DateTime.Now - searchStartTime).TotalSeconds * 1000000 / iterations;
         }
     }
 }

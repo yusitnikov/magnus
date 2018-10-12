@@ -96,7 +96,7 @@ namespace Magnus
                         player.Strategy = strategyInfo.Strategy;
                         if (world.State.GameState.IsOneOf(GameState.Playing))
                         {
-                            player.RequestAim();
+                            player.RequestAim(world.State);
                         }
                     }
                 }
@@ -132,7 +132,6 @@ namespace Magnus
             drawer.DrawWorld(world.State);
             drawer.DrawString("FPS: " + Profiler.Instance.FPS, 0, 0);
             drawer.DrawString("Speed: " + world.TimeCoeff + " / " + World.DefaultTimeCoeff, 1, 0);
-            drawer.DrawString("Last search: " + (int)Player.LastSearchTime, 2, 0);
             Player leftPlayer = world.State.Players[Constants.LeftPlayerIndex], rightPlayer = world.State.Players[Constants.RightPlayerIndex];
             drawer.DrawString(leftPlayer.Strategy + " " + leftPlayer.Score + " - " + rightPlayer.Score + " " + rightPlayer.Strategy, 0, 0.5f);
             var text = "";

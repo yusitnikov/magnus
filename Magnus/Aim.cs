@@ -5,55 +5,94 @@ namespace Magnus
 {
     abstract class Aim
     {
-        public readonly Player AimPlayer, AimPlayer0;
-        public readonly double AimT, AimT0;
+        public readonly Player AimPlayer;
+        public readonly double AimT;
+        protected Player aimPlayer0;
+        protected double aimT0;
 
         private readonly double timeToStop;
 
-        protected double timeToMove;
+        public double TimeToMove { get; protected set; }
 
         public bool HasTimeToReact { get; protected set; }
 
         protected Aim(Player aimPlayer, Player aimPlayer0, double aimT, double aimT0)
         {
             AimPlayer = aimPlayer.Clone();
-            AimPlayer0 = aimPlayer0.Clone();
             AimT = aimT;
-            AimT0 = aimT0;
+            this.aimPlayer0 = aimPlayer0.Clone();
+            this.aimT0 = aimT0;
 
             timeToStop = Misc.GetTimeBySpeedAndForce(aimPlayer.Speed.Length, Constants.MaxPlayerForce);
+
+            init();
+
+            SetCurrentState(aimPlayer0, aimT0);
+        }
+
+        protected virtual void init()
+        {
+        }
+
+        public virtual void SetCurrentState(Player player, double t)
+        {
+            aimPlayer0 = player.Clone();
+            aimT0 = t;
+
+            // Implementation class must set HasTimeToReact and TimeToMove variables' values
+        }
+
+        public bool TrySetCurrentState(Player player, double t)
+        {
+            var prevPlayer0 = aimPlayer0;
+            var prevT0 = aimT0;
+            SetCurrentState(player, t);
+            var success = HasTimeToReact;
+            if (!success)
+            {
+                SetCurrentState(prevPlayer0, prevT0);
+            }
+            return success;
         }
 
         protected Point3D getHitPosition(double t, double forceToHit)
         {
-            return AimPlayer.Position + AimPlayer.Speed * t - AimPlayer.Speed.Normal * (forceToHit * t * Math.Abs(t) / 2);
+            return AimPlayer.Position - AimPlayer.Speed * t + getHitForce(forceToHit) * (t * t / 2);
         }
 
-        protected abstract void updatePlayerPosition(State s, Player p);
-
-        public virtual bool UpdatePlayerPosition(State s, Player p)
+        protected Point3D getHitForce(double forceToHit)
         {
-            double timeFromState = s.Time - AimT;
-
-            if (timeFromState > timeToStop)
+            if (AimPlayer.Speed.Length != 0)
             {
-                return false;
-            }
-
-            if (timeFromState > 0)
-            {
-                p.Position = getHitPosition(timeFromState, Constants.MaxPlayerForce);
+                return forceToHit * AimPlayer.Speed.Normal;
             }
             else
             {
-                updatePlayerPosition(s, p);
+                return Point3D.Empty;
             }
+        }
 
-            var angleCoeff = Math.Min((s.Time - AimT0) / timeToMove, 1);
-            p.AnglePitch = AimPlayer0.AnglePitch + Misc.NormalizeAngle(AimPlayer.AnglePitch - AimPlayer0.AnglePitch) * angleCoeff;
-            p.AngleYaw = AimPlayer0.AngleYaw + Misc.NormalizeAngle(AimPlayer.AngleYaw - AimPlayer0.AngleYaw) * angleCoeff;
+        protected abstract Point3D getPlayerForce(State s, Player p);
 
-            return true;
+        public Point3D GetPlayerForce(State s, Player p)
+        {
+            if (s.Time < AimT)
+            {
+                return getPlayerForce(s, p);
+            }
+            else
+            {
+                return Point3D.Empty;
+            }
+        }
+
+        public void UpdatePlayer(State s, Player p)
+        {
+            p.Force = GetPlayerForce(s, p);
+
+            var angleCoeff = Math.Min((s.Time - aimT0) / TimeToMove, 1);
+            p.AnglePitch = aimPlayer0.AnglePitch + Misc.NormalizeAngle(AimPlayer.AnglePitch - aimPlayer0.AnglePitch) * angleCoeff;
+            p.AngleYaw = aimPlayer0.AngleYaw + Misc.NormalizeAngle(AimPlayer.AngleYaw - aimPlayer0.AngleYaw) * angleCoeff;
         }
     }
 }

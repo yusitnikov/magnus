@@ -1,5 +1,4 @@
-﻿using Mathematics.Expressions;
-using Mathematics.Math3D;
+﻿using Mathematics.Math3D;
 using System;
 
 namespace Magnus
@@ -39,7 +38,7 @@ namespace Magnus
             Ball.AngularSpeed = Point3D.Empty;
 
             UpdateNextServeX();
-            Players[HitSide].RequestAim();
+            Players[HitSide].RequestAim(this);
         }
 
         private Event doStep(bool useBat, bool updateBat = false, State relativeState = null, double dt = Constants.SimulationFrameTime)
@@ -93,7 +92,8 @@ namespace Magnus
             {
                 if (player.Index != HitSide || GameState.IsOneOf(GameState.NotReadyToHit))
                 {
-                    endSet(GameState == GameState.Served);
+                    // player.Index is the lose side
+                    endSet(player.Index != HitSide);
                 }
                 else
                 {
@@ -128,6 +128,8 @@ namespace Magnus
                     events |= Event.BatHit;
                     events |= player.Index == Constants.RightPlayerIndex ? Event.RightBatHit : Event.LeftBatHit;
                     ProcessBatHit(player);
+                    player.ResetAim();
+                    player.MoveToInitialPosition(this, false);
                 }
             }
 
@@ -269,6 +271,7 @@ namespace Magnus
             GameState = state.GameState;
             Time = state.Time;
             Ball = state.Ball.Clone();
+            NextServeX = state.NextServeX;
             if (copyPlayers)
             {
                 Players = new Player[] { state.Players[0].Clone(), state.Players[1].Clone() };

@@ -21,6 +21,32 @@ namespace Magnus
             }
         }
 
+        public Point3DExpression LowestPoint
+        {
+            get
+            {
+                var vector = TranslateVectorFromBatCoords(new Point3DExpression(Constants.BatRadius, Constant.Nil, Constant.Nil));
+                return Position - vector * Expression.Sign(vector.Y);
+            }
+        }
+
+        private string alias;
+        public string Alias
+        {
+            get => alias;
+            set
+            {
+                alias = value;
+                if (value != null)
+                {
+                    Position.Alias = value + "Pos";
+                    Speed.Alias = value + "Speed";
+                    AnglePitch.Alias = value + "Pitch";
+                    AngleYaw.Alias = value + "Yaw";
+                }
+            }
+        }
+
         public Player Evaluate(int cacheGeneration = 0)
         {
             if (cacheGeneration == 0)

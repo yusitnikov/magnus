@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Mathematics.Math3D;
+using System;
 
 namespace Magnus
 {
@@ -75,6 +76,16 @@ namespace Magnus
         public static double GetDistanceByForceAndTime(double force, double time)
         {
             return force * time * time / 2;
+        }
+
+        public static double GetForceByDistanceAndTime(double distance, double time)
+        {
+            return 2 * distance / (time * time);
+        }
+
+        public static Point3D GetForceByDistanceAndTime(Point3D distance, double time)
+        {
+            return distance * (2 / (time * time));
         }
 
         #endregion
